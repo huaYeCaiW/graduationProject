@@ -1,0 +1,23 @@
+#设备清单：业务配置，由application.properties里的spring.config.import引入
+donghuan:
+  devices:
+    - id: th-01
+      name: 机房温湿度传感器
+      protocol: mqtt
+      connection:
+        topic: donghuan/th/01
+      points:
+        - pointId: temperature
+          metric: 温度
+          unit: "℃"
+          jsonPath: $.temperature
+          freq: 60s
+          min: 18
+          max: 28
+        - pointId: humidity
+          metric: 湿度
+          unit: "%"
+          jsonPath: $.humidity
+          freq: 60s
+          min: 30
+          max: 70
