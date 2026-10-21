@@ -4,6 +4,7 @@ import lombok.Data;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 //一台设备的配置，对应devices.yml里devices列表的每个元素
 @Data
@@ -31,5 +32,11 @@ public class DeviceConfig {
         private Double min;
         private Double max;
 
+    }
+
+    // 查测点
+    public Optional<Point> findPoint(String pointId) {
+        return points.stream().filter(p -> p.getPointId().equals(pointId))
+                .findFirst();
     }
 }

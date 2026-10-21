@@ -1,0 +1,31 @@
+# simulator.py - 假温湿度传感器，往 EMQX broker 发 MQTT 消息
+import paho.mqtt.client as mqtt
+import json
+import time
+import random
+
+BROKER = "localhost"
+PORT = 1883
+TOPIC = "donghuan/th/01"
+DEVICE_ID = "th-01"
+
+client = mqtt.Client(client_id="simulator_" + DEVICE_ID, protocol=mqtt.MQTTv311)
+client.connect(BROKER, PORT, keepalive=60)
+print(f"✅ 已连 {BROKER}:{PORT} → {TOPIC}")
+
+client.loop_start()
+
+try:
+    while True:
+        payload = {
+            "temperature": round(20 + random.random() * 12, 1),   # 20~32℃
+            "humidity":    round(40 + random.random() * 35, 1),   # 40~75%
+            "ts":          int(time.time() * 1000)                 # 毫秒时间戳
+        }
+        client.publish(TOPIC, json.dumps(payload), qos=0)
+        print(f"📤 {payload}")
+        time.sleep(5)
+except KeyboardInterrupt:
+    print("\n🛑 停了")
+    client.loop_stop()
+    client.disconnect()
