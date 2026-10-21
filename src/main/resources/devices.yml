@@ -13,7 +13,7 @@ donghuan:
           jsonPath: $.temperature
           freq: 60s
           min: 18
-          max: 28
+          max: 38
         - pointId: humidity
           metric: 湿度
           unit: "%"
