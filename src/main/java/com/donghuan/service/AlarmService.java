@@ -37,6 +37,7 @@ public class AlarmService {
         private final String pointId;
         private final double value;
         private final Instant alarmTime;
+        private final Instant sampledAt;
         private final String metric;     // "温度"
         private Double min;       // 下限
         private Double max;       // 上限
@@ -45,6 +46,7 @@ public class AlarmService {
             this.deviceId = pv.getDeviceId();
             this.pointId = pv.getPointId();
             this.alarmTime = alarmTime;
+            this.sampledAt = pv.getSampledAt();
             this.value = pv.getValue();
             this.metric = pv.getMetric();
         }

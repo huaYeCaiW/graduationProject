@@ -9,6 +9,10 @@ import java.util.Optional;
 public interface PointStore {
 
     void save(PointValue value);
+
     Optional<PointValue> findLatest(String deviceId, String pointId);
+
     List<PointValue> findByRange(String deviceId, String pointId, Instant startTime, Instant endTime);
+
+    boolean updateThreshold(String deviceId, String pointId, Double min, Double max);
 }

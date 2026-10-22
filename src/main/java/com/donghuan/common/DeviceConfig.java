@@ -2,6 +2,7 @@ package com.donghuan.common;
 
 import lombok.Data;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -29,9 +30,9 @@ public class DeviceConfig {
         private String unit;        //单位
         private String jsonPath;    //JSON路径
         private String freq;        //采集频率
+        private String timeJsonPath;// 采样时间路径
         private Double min;
         private Double max;
-
     }
 
     // 查测点

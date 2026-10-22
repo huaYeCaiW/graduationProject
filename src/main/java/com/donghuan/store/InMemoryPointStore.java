@@ -1,7 +1,10 @@
 package com.donghuan.store;
 
+import com.donghuan.common.DeviceProperties;
 import com.donghuan.model.PointValue;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
@@ -11,8 +14,11 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
+@ConditionalOnProperty(name = "donghuan.store.type", havingValue = "memory", matchIfMissing = true)
 public class InMemoryPointStore implements PointStore {
 
+    private DeviceProperties deviceProperties = new DeviceProperties();
     private final Map<String, List<PointValue>> history = new ConcurrentHashMap<>();
 
     //存储
@@ -51,5 +57,21 @@ public class InMemoryPointStore implements PointStore {
                 .filter(pv -> !pv.getTimestamp().isBefore(startTime)
                                      && !pv.getTimestamp().isAfter(endTime))
                 .toList();
+    }
+
+    @Override
+    public boolean updateThreshold(String deviceId, String pointId, Double min, Double max) {
+
+        return deviceProperties.findDevice(deviceId)
+                .flatMap(d -> d.findPoint(pointId))
+                .map(point -> {
+                    if (max != null) {
+                        point.setMax(max);
+                    }
+                    if (min != null) {
+                        point.setMin(min);
+                    }
+                    return true;
+                }).orElse(false);
     }
 }

@@ -12,7 +12,7 @@ DEVICE_ID = "th-01"
 client = mqtt.Client(client_id="simulator_" + DEVICE_ID, protocol=mqtt.MQTTv311)
 client.connect(BROKER, PORT, keepalive=60)
 print(f"✅ 已连 {BROKER}:{PORT} → {TOPIC}")
-
+num = 0
 client.loop_start()
 
 try:
@@ -24,8 +24,10 @@ try:
         }
         client.publish(TOPIC, json.dumps(payload), qos=0)
         print(f"📤 {payload}")
-        time.sleep(5)
+        num += 1
+        time.sleep(0.1)
 except KeyboardInterrupt:
     print("\n🛑 停了")
+    print(f"共{num}条")
     client.loop_stop()
     client.disconnect()

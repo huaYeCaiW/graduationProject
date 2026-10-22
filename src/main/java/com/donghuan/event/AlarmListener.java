@@ -18,10 +18,11 @@ public class AlarmListener {
         //警告入库
         alarmService.record(event);
 
-        log.warn("越限警告触发：device={}, point={}, value={}, time={}",
+        log.warn("越限警告触发：device={}, point={}, value={}, time={}, sampledAt={}",
                 event.getPointValue().getDeviceId(),
                 event.getPointValue().getPointId(),
                 event.getPointValue().getValue(),
-                event.getAlarmTime());
+                event.getAlarmTime(),
+                event.getPointValue().getSampledAt());
     }
 }

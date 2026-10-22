@@ -4,8 +4,8 @@ import com.donghuan.model.PointValue;
 import com.donghuan.model.RawMessage;
 import com.donghuan.parser.MessageParser;
 import com.donghuan.pipeline.ThresholdChecker;
-import com.donghuan.store.InMemoryPointStore;
 import com.donghuan.store.LatestValueHolder;
+import com.donghuan.store.PointStore;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +22,7 @@ public class MessageStream {
 
     private final MessageParser parser;
     private final ThresholdChecker thresholdChecker;
-    private final InMemoryPointStore pointStore;
+    private final PointStore pointStore;
     private final LatestValueHolder latestHolder;
     // 采样周期
     private final Duration sampleInterval = Duration.ofSeconds(3);

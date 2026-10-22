@@ -13,5 +13,6 @@ public class PointValue {
     private double value;
     private String unit;            //单位
     private Instant timestamp;      //数据时间
+    private Instant sampledAt;      // 设备采样时间
     private String quality;         //质量码：正常/越限/异常
 }

@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -34,9 +35,15 @@ public class MessageParser {
 
         for (DeviceConfig.Point point : device.getPoints()){  //遍历测点
             //抽值
-            Optional<Double> opt = extractor.extract(raw.getPayload(), point.getJsonPath());
+            Optional<Double> opt = extractor.extract(
+                    raw.getPayload(),
+                    point.getJsonPath());
 
-            if (opt.isEmpty()){
+            Optional<Double> optTs = extractor.extract(
+                    raw.getPayload(),
+                    point.getTimeJsonPath());
+
+            if (opt.isEmpty() || optTs.isEmpty()){
                 continue;
             }
 
@@ -48,6 +55,7 @@ public class MessageParser {
             pv.setValue(opt.get());
             pv.setUnit(point.getUnit());
             pv.setTimestamp(raw.getReceivedAt());
+            pv.setSampledAt(Instant.ofEpochMilli(optTs.get().longValue()));
             pv.setQuality(null);
 
             result.add(pv);

@@ -6,6 +6,7 @@ import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import java.time.Instant;
 import java.util.Optional;
 
 @Slf4j
@@ -19,7 +20,7 @@ public class JsonPathPointExtractor {
     public Optional<Double> extract(String payload, String jsonPath){
         try{
             JsonNode node = objectMapper.readTree(payload);
-            for(String field : split(jsonPath)){
+            for(String field : split(jsonPath)) {
                 node = node.path(field);
             }
             //抽到的不是数字返回空

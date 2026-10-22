@@ -33,4 +33,16 @@ public class PointController {
                                   ) {
         return pointStore.findByRange(deviceId, pointId,start, end);
     }
+
+    @PutMapping("/{deviceId}/{pointId}/threshold")
+    public ResponseEntity<Void> threshold(@PathVariable String deviceId,
+                                            @PathVariable String pointId,
+                                            @RequestBody ThresholdReq req) {
+        boolean ok = pointStore.updateThreshold(deviceId, pointId, req.min(), req.max());
+        if (!ok) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
+        return ResponseEntity.ok().build();
+    }
+    record ThresholdReq(Double min, Double max){}
 }

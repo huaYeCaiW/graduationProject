@@ -14,6 +14,7 @@ donghuan:
           freq: 60s
           min: 18
           max: 38
+          timeJsonPath: $.ts
         - pointId: humidity
           metric: 湿度
           unit: "%"
@@ -21,3 +22,4 @@ donghuan:
           freq: 60s
           min: 30
           max: 70
+          timeJsonPath: $.ts
