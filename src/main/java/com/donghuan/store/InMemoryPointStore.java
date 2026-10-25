@@ -18,7 +18,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 @ConditionalOnProperty(name = "donghuan.store.type", havingValue = "memory", matchIfMissing = true)
 public class InMemoryPointStore implements PointStore {
 
-    private DeviceProperties deviceProperties = new DeviceProperties();
+    private final DeviceProperties deviceProperties = new DeviceProperties();
     private final Map<String, List<PointValue>> history = new ConcurrentHashMap<>();
 
     //存储

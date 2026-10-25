@@ -1,6 +1,6 @@
 package com.donghuan.common;
 
-import com.donghuan.model.PointValue;
+import com.donghuan.store.PointRefCache;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
@@ -10,8 +10,6 @@ import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
-import java.util.Optional;
-
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -20,15 +18,22 @@ import java.util.Optional;
 public class ThresholdLoader implements ApplicationRunner {
     private final JdbcTemplate jdbcTemplate;
     private final DeviceProperties deviceProperties;
+    private final PointRefCache refCache;
 
     @Override
     public void run(ApplicationArguments args) throws Exception {
         int[] loaded = {0};
         jdbcTemplate.query(
-                "select device_id, point_id, min_value, max_value from point",
+                "select " +
+                        "d.device_code, " +
+                        "p.point_code, " +
+                        "p.min_value, " +
+                        "p.max_value " +
+                        "from point p join device d on p.device_id = d.id " +
+                        "where p.enabled = 1 and d.enabled = 1",
                 rs -> {
-                    String deviceId = rs.getString("device_id");
-                    String pointId = rs.getString("point_id");
+                    String pointId = rs.getString("point_code");
+                    String deviceId = rs.getString("device_code");
                     Double min = rs.getObject("min_value", Double.class);
                     Double max = rs.getObject("max_value", Double.class);
 

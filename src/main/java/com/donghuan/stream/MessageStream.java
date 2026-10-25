@@ -3,8 +3,7 @@ package com.donghuan.stream;
 import com.donghuan.model.PointValue;
 import com.donghuan.model.RawMessage;
 import com.donghuan.parser.MessageParser;
-import com.donghuan.pipeline.ThresholdChecker;
-import com.donghuan.store.LatestValueHolder;
+import com.donghuan.service.AlarmService;
 import com.donghuan.store.PointStore;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -21,9 +20,8 @@ import java.time.Duration;
 public class MessageStream {
 
     private final MessageParser parser;
-    private final ThresholdChecker thresholdChecker;
     private final PointStore pointStore;
-    private final LatestValueHolder latestHolder;
+    private final AlarmService alarmService;
     // 采样周期
     private final Duration sampleInterval = Duration.ofSeconds(3);
 
@@ -38,27 +36,29 @@ public class MessageStream {
 
         // 订阅端形态Sinks.many() -> Flux
         // RawMessage -> List<PointValue>
-        Flux<PointValue> valuesFlux = rawSink.asFlux()                           // 订阅端形态Sinks.many() -> Flux
-                .map(parser::parse)      // RawMessage -> List<PointValue>
-                .flatMapIterable(list -> list);  // List -> 拆成一个个 PointValue
+        Flux<PointValue> valuesFlux = rawSink.asFlux()// 订阅端形态Sinks.many() -> Flux
+                .map(parser::parse)                   // RawMessage -> List<PointValue>
+                .flatMapIterable(list -> list)// List -> 拆成一个个 PointValue
+                .share();
 
         // 订阅
-        //更新最新值
-        valuesFlux.subscribe(
-                latestHolder::update,
-                err -> log.error("最新值更新失败", err)
-        );
         //越限警告
-        valuesFlux.filter(thresholdChecker::isOutOfRange)
-                .subscribe(
-                        thresholdChecker::raiseAlarm,
-                        err -> log.error("警告失败", err)
-                );
+        valuesFlux.subscribe(pv -> {
+            try {
+                alarmService.evaluate(pv);
+            } catch (Exception e) {
+                log.error("警告处理失败:{}", pv, e);
+            }
+
+        },err -> log.error("告警流异常终止", err));
         //采样存储
-        valuesFlux.subscribe(
-                        pointStore::save,
-                        err -> log.error("采样存储失败", err)
-                );
+        valuesFlux.subscribe(pv ->{
+            try {
+                pointStore.save(pv);
+            } catch (Exception e) {
+                log.error("存储失败:{}", pv, e);
+            }
+        },err -> log.error("存储流异常终止", err));
     }
 
     //对外入口，报文推入口

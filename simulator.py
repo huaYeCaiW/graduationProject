@@ -19,13 +19,13 @@ try:
     while True:
         payload = {
             "temperature": round(20 + random.random() * 12, 1),   # 20~32℃
-            "humidity":    round(40 + random.random() * 35, 1),   # 40~75%
+            "humidity":    round(30 + random.random() * 35, 1),   # 40~75%
             "ts":          int(time.time() * 1000)                 # 毫秒时间戳
         }
         client.publish(TOPIC, json.dumps(payload), qos=0)
         print(f"📤 {payload}")
         num += 1
-        time.sleep(0.1)
+        time.sleep(1)
 except KeyboardInterrupt:
     print("\n🛑 停了")
     print(f"共{num}条")

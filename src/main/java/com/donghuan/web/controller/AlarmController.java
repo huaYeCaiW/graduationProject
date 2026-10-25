@@ -1,6 +1,7 @@
 package com.donghuan.web.controller;
 
-import com.donghuan.service.AlarmService;
+import com.donghuan.model.AlarmValue;
+import com.donghuan.store.AlarmStore;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -12,10 +13,15 @@ import java.util.List;
 @RequestMapping("/api/alarms")
 @RequiredArgsConstructor
 public class AlarmController {
-    private final AlarmService alarmService;
+    private final AlarmStore alarmStore;
+
+    @GetMapping("/active")
+    public List<AlarmValue> listActive() {
+        return alarmStore.findActive();
+    }
 
     @GetMapping
-    public List<AlarmService.AlarmRecord> list() {
-        return alarmService.listAll();
+    public List<AlarmValue> listAll() {
+        return alarmStore.findAll();
     }
 }
