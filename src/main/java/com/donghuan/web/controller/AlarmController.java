@@ -3,10 +3,9 @@ package com.donghuan.web.controller;
 import com.donghuan.model.AlarmValue;
 import com.donghuan.store.AlarmStore;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
+import java.time.Instant;
 import java.util.List;
 
 @RestController
@@ -14,6 +13,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AlarmController {
     private final AlarmStore alarmStore;
+    private static final long TEST_USER_ID = 1L;
+
 
     @GetMapping("/active")
     public List<AlarmValue> listActive() {
@@ -23,5 +24,11 @@ public class AlarmController {
     @GetMapping
     public List<AlarmValue> listAll() {
         return alarmStore.findAll();
+    }
+
+    // TODO五阶段改为Session中登陆的userId
+    @PostMapping("/{id}/confirm")
+    public int confirm(@PathVariable long id) {
+        return alarmStore.confirm(id, TEST_USER_ID, Instant.now());
     }
 }

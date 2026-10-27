@@ -71,11 +71,10 @@ public class AlarmService implements ApplicationRunner {
 
             } else {
                 // 更新alarm表
-                alarmStore.touch(activeAlarm.getId(), pv.getValue(), sampleAt);
+                alarmStore.touch(activeAlarm.getId(), pv.getValue());
                 // 回填内存
                 activeAlarm.setValue(pv.getValue());
-                activeAlarm.setSampleAt(sampleAt);
-                log.debug("更新时间{}", activeAlarm.getSampleAt());
+                log.debug("更新值{}", pv.getValue());
 
             }
         } else if (activeAlarm != null){
@@ -83,7 +82,6 @@ public class AlarmService implements ApplicationRunner {
             alarmStore.markRecovered(activeAlarm.getId(), sampleAt);
             activeByPoint.remove(activeAlarm.getPointId());
             log.debug("恢复{}", activeAlarm);
-
         }
     }
 }

@@ -7,7 +7,6 @@ import com.donghuan.store.AlarmStore;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
@@ -50,23 +49,27 @@ public class JdbcAlarmStore implements AlarmStore {
     }
     // 警告持续发生更新当前警告值
     @Override
-    public void touch(long id, double value, Instant sampleAt) {
-        jdbcTemplate.update("update alarm set value = ?, sample_at = ? where id = ?",
-                value, Timestamp.from(sampleAt), id);
+    public void touch(long id, double value) {
+        jdbcTemplate.update("update alarm set value = ? where id = ?",
+                value, id);
     }
 
     // 数值回复正常
     @Override
     public void markRecovered(long id, Instant recoveredAt) {
-        jdbcTemplate.update("update alarm set status = ?, recovered_at = ? where id = ?",
-                AlarmStatus.RECOVERED.name(), Timestamp.from(recoveredAt), id);
+        jdbcTemplate.update("update alarm set status = ?, recovered_at = ? where id = ? and status = ?",
+                AlarmStatus.RECOVERED.name(), Timestamp.from(recoveredAt),
+                id, AlarmStatus.ACTIVE.name());
 
     }
 
-    // 数值持续异常手动确认，目前无user表暂缓
+    // 数值持续异常手动确认
     @Override
-    public void confirm(long id, long userId, Instant confirmedAt) {
-
+    public int confirm(long id, long userId, Instant confirmedAt) {
+        return jdbcTemplate.update("update alarm " +
+                "set confirmed_by = ?, confirmed_at = ? " +
+                "where id = ? and status = ?",
+                userId, Timestamp.from(confirmedAt), id, AlarmStatus.ACTIVE.name());
     }
 
     @Override

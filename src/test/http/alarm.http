@@ -1,0 +1,2 @@
+### 确认告警
+POST http://localhost:8080/api/alarms/6/confirm
