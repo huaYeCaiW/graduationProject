@@ -34,6 +34,7 @@ python simulator/mqtt_simulator.py
 
 ### 6. 验证
 curl http://localhost:8080/api/devices
+
 curl http://localhost:8080/api/points/{deviceId}/{pointId}/latest
 
 ## 现接口
