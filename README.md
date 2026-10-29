@@ -30,7 +30,7 @@ docker run -d --name emqx -p 1883:1883 -p 18083:18083 emqx/emqx:5.8.8
 mvn spring-boot:run
 
 ### 5. 启动模拟器（另开终端）
-python simulator/mqtt_simulator.py
+py simulator/mqtt_simulator.py
 
 ### 6. 验证
 curl http://localhost:8080/api/devices
