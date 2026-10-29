@@ -9,7 +9,7 @@
 - JDK 21
 - Maven 3.9+
 - MySQL 8.0+
-- EMQX 5.x（或任意 MQTT Broker）
+- EMQX 5.8.8（或任意 MQTT Broker）
 - （可选）Python 3.10+，用于跑 MQTT 模拟器
 
 ## 快速启动
@@ -24,7 +24,7 @@ mysql -u root -p < sql/schema.sql
 - donghuan.store.type=memory 或 jdbc
 
 ### 3. 启动 EMQX
-docker run -d --name emqx -p 1883:1883 -p 18083:18083 emqx/emqx:5.8
+docker run -d --name emqx -p 1883:1883 -p 18083:18083 emqx/emqx:5.8.8
 
 ### 4. 启动应用
 mvn spring-boot:run
