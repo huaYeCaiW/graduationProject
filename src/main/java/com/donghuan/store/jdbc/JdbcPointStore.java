@@ -2,6 +2,7 @@ package com.donghuan.store.jdbc;
 
 import com.donghuan.common.DeviceProperties;
 import com.donghuan.model.PointValue;
+import com.donghuan.model.Quality;
 import com.donghuan.store.PointRefCache;
 import com.donghuan.store.PointStore;
 import lombok.RequiredArgsConstructor;
@@ -40,15 +41,15 @@ public class JdbcPointStore implements PointStore {
         }
 
         String sql = "insert into point_value " +
-                "(point_id, value, sample_at, sys_ts) " +
-                "values(?, ?, ?, ?)";
+                "(point_id, value, sample_at, sys_ts, quality) " +
+                "values(?, ?, ?, ?, ?)";
 
-        Instant sampleAt = value.getSampledAt() != null ? value.getSampledAt() : Instant.now();
         jdbcTemplate.update(sql,
                 ref.getAsLong(),
                 value.getValue(),
-                Timestamp.from(sampleAt),       // 无采样时间时改为存储事件
-                Timestamp.from(Instant.now())   // 把参数转换成Timestamp.from()
+                Timestamp.from(value.getSampledAt()),
+                Timestamp.from(Instant.now()),// 把参数转换成Timestamp.from()
+                value.getQuality()
         );
         log.debug("采样库存：{}", value);
     }
@@ -62,7 +63,7 @@ public class JdbcPointStore implements PointStore {
 
         String sql = "select value, sample_at, quality " +
                 "from point_value " +
-                "where point_id = ? " +
+                "where point_id = ? and quality = ? " +
                 "order by sample_at desc, id desc limit 1";
 
         List<PointValue> list = jdbcTemplate.query(sql,
@@ -74,7 +75,7 @@ public class JdbcPointStore implements PointStore {
                             pv.setSampledAt(rs.getTimestamp("sample_at").toInstant());
                             pv.setQuality(rs.getString("quality"));
                             return pv;
-                }, ref.getAsLong());
+                }, ref.getAsLong(), Quality.OK.name());
         return list.stream().findFirst();
     }
 
@@ -84,7 +85,7 @@ public class JdbcPointStore implements PointStore {
         if (ref.isEmpty()) return List.of();
 
         String sql = "select value, sample_at, quality from point_value " +
-                "where point_id = ? " +
+                "where point_id = ? and quality = ? " +
                 "and sample_at between ? and ? order by sample_at";
 
         return jdbcTemplate.query(sql,
@@ -96,7 +97,7 @@ public class JdbcPointStore implements PointStore {
                     pv.setQuality(rs.getString("quality"));
                     pv.setSampledAt(rs.getTimestamp("sample_at").toInstant());
                     return pv;
-                }, ref.getAsLong(), Timestamp.from(startTime), Timestamp.from(endTime));
+                }, ref.getAsLong(),Quality.OK.name(), Timestamp.from(startTime), Timestamp.from(endTime));
     }
 
     @Override

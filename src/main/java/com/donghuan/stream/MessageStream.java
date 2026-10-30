@@ -3,6 +3,7 @@ package com.donghuan.stream;
 import com.donghuan.model.PointValue;
 import com.donghuan.model.RawMessage;
 import com.donghuan.parser.MessageParser;
+import com.donghuan.pipeline.DataCleaner;
 import com.donghuan.service.AlarmService;
 import com.donghuan.store.PointStore;
 import jakarta.annotation.PostConstruct;
@@ -10,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
 
 import java.time.Duration;
@@ -22,6 +24,7 @@ public class MessageStream {
     private final MessageParser parser;
     private final PointStore pointStore;
     private final AlarmService alarmService;
+    private final DataCleaner cleaner;
     // 采样周期
     private final Duration sampleInterval = Duration.ofSeconds(3);
 
@@ -39,6 +42,9 @@ public class MessageStream {
         Flux<PointValue> valuesFlux = rawSink.asFlux()// 订阅端形态Sinks.many() -> Flux
                 .map(parser::parse)                   // RawMessage -> List<PointValue>
                 .flatMapIterable(list -> list)// List -> 拆成一个个 PointValue
+                .doOnNext(cleaner::convertUnit)
+                .flatMap(pv -> Mono.justOrEmpty(cleaner.verify(pv)))// 校验
+                .filter(cleaner::accept)
                 .share();
 
         // 订阅
@@ -49,8 +55,8 @@ public class MessageStream {
             } catch (Exception e) {
                 log.error("警告处理失败:{}", pv, e);
             }
-
         },err -> log.error("告警流异常终止", err));
+
         //采样存储
         valuesFlux.subscribe(pv ->{
             try {

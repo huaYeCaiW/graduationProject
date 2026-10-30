@@ -1,5 +1,6 @@
 package com.donghuan.store;
 
+import com.donghuan.common.PointKeys;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,6 +18,7 @@ public class PointRefCache {
 
     private final JdbcTemplate jdbcTemplate;
     private volatile Map<String, Long> refs = Map.of();
+    private final PointKeys keys;
 
     @PostConstruct
     public void load() {
@@ -29,7 +31,7 @@ public class PointRefCache {
                 "where p.enabled = 1 and d.enabled = 1",
                 // 按行取数据rs指向当前行，JdbcTemplate内部会执行循环rs.next()，callback.processRow(rs)
                 rs -> {
-                    next.put(key(rs.getString("device_code"), rs.getString("point_code")),
+                    next.put(keys.key(rs.getString("device_code"), rs.getString("point_code")),
                             rs.getLong("id"));
                 });
         refs = Map.copyOf(next);
@@ -47,13 +49,8 @@ public class PointRefCache {
 
     public OptionalLong find(String deviceCode, String pointCode) {
 
-        Long id = refs.get(key(deviceCode, pointCode));
+        Long id = refs.get(keys.key(deviceCode, pointCode));
 
         return id == null ? OptionalLong.empty() : OptionalLong.of(id);
-    }
-
-    // 拼接key“deviceCode:pointCode”
-    private static String key (String deviceCode, String pointCode) {
-        return deviceCode + ":" + pointCode;
     }
 }

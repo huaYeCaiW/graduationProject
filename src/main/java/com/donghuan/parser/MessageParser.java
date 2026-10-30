@@ -43,10 +43,11 @@ public class MessageParser {
                     raw.getPayload(),
                     point.getTimeJsonPath());
 
-            if (opt.isEmpty() || optTs.isEmpty()){
+            if (opt.isEmpty()){
                 continue;
             }
 
+            Instant sampleAt = optTs.isEmpty() ? raw.getReceivedAt() : Instant.ofEpochMilli(optTs.get().longValue());
             //组装Value
             PointValue pv = new PointValue();
             pv.setDeviceId(raw.getDeviceId());
@@ -55,7 +56,7 @@ public class MessageParser {
             pv.setValue(opt.get());
             pv.setUnit(point.getUnit());
             pv.setTimestamp(raw.getReceivedAt());
-            pv.setSampledAt(Instant.ofEpochMilli(optTs.get().longValue()));
+            pv.setSampledAt(sampleAt);
             pv.setQuality(null);
 
             result.add(pv);

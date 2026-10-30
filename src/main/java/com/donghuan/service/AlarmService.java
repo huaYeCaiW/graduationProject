@@ -2,6 +2,7 @@ package com.donghuan.service;
 
 import com.donghuan.model.AlarmValue;
 import com.donghuan.model.PointValue;
+import com.donghuan.model.Quality;
 import com.donghuan.pipeline.ThresholdChecker;
 import com.donghuan.store.AlarmStore;
 import com.donghuan.store.PointRefCache;
@@ -39,6 +40,8 @@ public class AlarmService implements ApplicationRunner {
     }
 
     public void evaluate(PointValue pv) {
+        // 校验结果BAD直接跳过
+        if (pv.getQuality().equals(Quality.BAD.name())) return;
         // 取映射id,alarm.point_id,是point的自增id对应一个point
         OptionalLong optionalPointId = refCache.find(pv.getDeviceId(), pv.getPointId());
         // 存阈值判断后的result

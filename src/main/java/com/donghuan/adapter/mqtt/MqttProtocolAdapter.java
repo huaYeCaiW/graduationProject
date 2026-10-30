@@ -89,6 +89,8 @@ public class MqttProtocolAdapter implements ProtocolAdapter {
         }
     }
 
+
+    // TODO 4阶段实现
     @Override
     public void subscribe(DeviceConfig device, Consumer<RawMessage> sink) {
 
