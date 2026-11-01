@@ -1,10 +1,12 @@
 package com.donghuan.stream;
 
+import com.donghuan.common.PointKeys;
 import com.donghuan.model.PointValue;
 import com.donghuan.model.RawMessage;
 import com.donghuan.parser.MessageParser;
 import com.donghuan.pipeline.DataCleaner;
 import com.donghuan.service.AlarmService;
+import com.donghuan.store.PointSnapshot;
 import com.donghuan.store.PointStore;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -15,16 +17,22 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
 
 import java.time.Duration;
+import java.time.Instant;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class MessageStream {
 
+    private final PointKeys keys;
     private final MessageParser parser;
     private final PointStore pointStore;
+    private final PointSnapshot snapshots;
     private final AlarmService alarmService;
     private final DataCleaner cleaner;
+    private final Map<String, Instant> saved = new ConcurrentHashMap<>();
     // 采样周期
     private final Duration sampleInterval = Duration.ofSeconds(3);
 
@@ -48,6 +56,15 @@ public class MessageStream {
                 .share();
 
         // 订阅
+        // 内存快照
+        valuesFlux.subscribe(pv -> {
+            try {
+                snapshots.snapshot(pv);
+            } catch (Exception e) {
+                log.error("快照失败：{}", pv, e);
+            }
+        }, err -> log.error("快照流异常终止", err));
+
         //越限警告
         valuesFlux.subscribe(pv -> {
             try {
@@ -59,10 +76,31 @@ public class MessageStream {
 
         //采样存储
         valuesFlux.subscribe(pv ->{
-            try {
-                pointStore.save(pv);
-            } catch (Exception e) {
-                log.error("存储失败:{}", pv, e);
+            String key = keys.key(pv.getDeviceId(), pv.getPointId());
+            Instant last = saved.get(key);
+            // 内存空，直接落库，并存内存
+            if (last == null) {
+                try {
+                    pointStore.save(pv);
+                    saved.put(key, Instant.now());
+                } catch (Exception e) {
+                    log.error("存储失败:{}", pv, e);
+                }
+                // 内存非空，判定间隔时间
+                // 间隔大于等于 sampleInterval 落库，存内存
+            } else if (Duration.between(
+                    last,
+                    Instant.now())
+                    // compareTo 如果指定的数与参数相等返回 0
+                    // 如果指定的数小于参数返回 -1
+                    // 如果指定的数大于参数返回 1
+                    .compareTo(sampleInterval) >= 0) {
+                try {
+                    pointStore.save(pv);
+                    saved.put(key, Instant.now());
+                } catch (Exception e) {
+                    log.error("存储失败:{}", pv, e);
+                }
             }
         },err -> log.error("存储流异常终止", err));
     }
