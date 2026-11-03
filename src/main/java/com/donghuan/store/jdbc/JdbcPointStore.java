@@ -7,13 +7,9 @@ import com.donghuan.store.PointRefCache;
 import com.donghuan.store.PointStore;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
-
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
@@ -23,7 +19,6 @@ import java.util.OptionalLong;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@ConditionalOnProperty(name = "donghuan.store.type", havingValue = "jdbc")
 public class JdbcPointStore implements PointStore {
 
     private final JdbcTemplate jdbcTemplate;

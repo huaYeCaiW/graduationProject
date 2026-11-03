@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.List;
+import java.util.Collection;
 
 @RestController
 @RequestMapping("/api/devices")
@@ -21,7 +21,7 @@ public class DeviceController {
 
     // 取所有设备
     @GetMapping
-    public List<DeviceConfig> list() {
+    public Collection<DeviceConfig> list() {
         return deviceProperties.getDevices();
     }
 

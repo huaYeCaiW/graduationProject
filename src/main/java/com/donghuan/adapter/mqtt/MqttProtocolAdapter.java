@@ -2,6 +2,7 @@ package com.donghuan.adapter.mqtt;
 
 import com.donghuan.adapter.ProtocolAdapter;
 import com.donghuan.common.DeviceConfig;
+import com.donghuan.model.Protocol;
 import com.donghuan.model.RawMessage;
 import com.donghuan.stream.MessageStream;
 import jakarta.annotation.PreDestroy;
@@ -11,6 +12,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 @Slf4j
@@ -18,7 +21,7 @@ import java.util.function.Consumer;
 public class MqttProtocolAdapter implements ProtocolAdapter {
 
     // Paho客户端
-    private MqttClient client;
+    private final Map<String, MqttClient> clients = new ConcurrentHashMap<>();
     private final MessageStream messageStream;
 
     @Value("${mqtt.broker:tcp://localhost:1883}")
@@ -29,19 +32,42 @@ public class MqttProtocolAdapter implements ProtocolAdapter {
     }
 
     @Override
-    public String protocol() {
-        return "mqtt";
+    public Protocol protocol() {
+        return Protocol.MQTT;
     }
 
     @Override
     public void connect(DeviceConfig device) {
-        try {
-            // 新建paho客户端clientId全局唯一
-            String clientId = "donghuan_java_" + device.getId() +"_" + System.currentTimeMillis();
-            this.client = new MqttClient(broker,clientId);
+        // deviceId 做key
+        String deviceId = device.getId();
+        MqttClient client = null;
 
-            // 没回调
-            this.client.setCallback(new MqttCallback() {
+        try {
+            MqttClient existing = clients.get(deviceId);
+            // 已连接
+            if (existing != null && existing.isConnected()) {
+                return;
+            }
+            // Paho 客户端id
+            String clientId = "donghuan_java_" + deviceId;
+            client = new MqttClient(broker, clientId);
+
+            MqttClient bound = client;
+            client.setCallback(new MqttCallbackExtended() {
+
+                @Override
+                public void connectComplete(boolean reconnect, String serverURI) {
+                    String topic = device.getConnection().getTopic();
+                    try {
+                        bound.subscribe(topic, 1);
+                        if (reconnect) {
+                            log.info("MQTT重连成功，已重新订阅：topic={}, deviceId={}", topic, deviceId);
+                        }
+                    } catch (MqttException e) {
+                        log.warn("重新订阅失败：topic={}, deviceId={}", topic, deviceId);
+                    }
+                }
+
                 @Override
                 public void connectionLost(Throwable cause) {
                     log.warn("MQTT断开连接，paho自动重连：{}", cause.getMessage());
@@ -78,17 +104,20 @@ public class MqttProtocolAdapter implements ProtocolAdapter {
             options.setKeepAliveInterval(60);
 
             // 连broker
-            this.client.connect(options);
+            bound.connect(options);
 
-            // 订阅topic
-            this.client.subscribe(device.getConnection().getTopic(), 1);
+            clients.put(deviceId, client);
             log.info("√ MQTT连接成功：broker={}，topic={}，deviceId={}", broker, device.getConnection().getTopic(), device.getId());
 
         } catch (MqttException e) {
             log.error("× MQTT连接失败：{}", e.getMessage());
+            if (client != null) {
+                try {
+                    client.close();
+                } catch (MqttException ignored) {}
+            }
         }
     }
-
 
     // TODO 4阶段实现
     @Override
@@ -97,16 +126,29 @@ public class MqttProtocolAdapter implements ProtocolAdapter {
     }
 
     @Override
-    @PreDestroy
-    public void disconnect() {
-        if (this.client != null && this.client.isConnected()) {
+    public void disconnect(String deviceId) {
+        MqttClient client = clients.remove(deviceId);
+        if (client == null) {
+            return;
+        }
+        try {
+            if (client.isConnected()) {
+                client.disconnect();
+            }
+            log.info("已断开MQTT：deviceId={}", deviceId);
+        } catch (MqttException e) {
+            log.warn("MQTT断开异常：{}", e.getMessage());
+        } finally {
             try {
-                this.client.disconnect();
-                this.client.close();
-                log.info("已断开");
-            } catch (MqttException e) {
-                log.warn("MQTT断开异常：{}", e.getMessage());
+                client.close();
+            } catch (MqttException ignored) {
+
             }
         }
+    }
+
+    @PreDestroy
+    public void closeAll() {
+        clients.keySet().forEach(this::disconnect);
     }
 }

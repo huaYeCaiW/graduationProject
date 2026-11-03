@@ -1,5 +1,6 @@
 package com.donghuan.common;
 
+import com.donghuan.model.Protocol;
 import lombok.Data;
 
 import java.util.ArrayList;
@@ -12,7 +13,7 @@ public class DeviceConfig {
 
     private String id;                             //设备Id
     private String name;
-    private String protocol;                       //协议mqtt/modbus
+    private Protocol protocol;                       //协议mqtt/modbus
     private Connection connection;                 //连接信息
     private List<Point> points = new ArrayList<>();//测点列表
 

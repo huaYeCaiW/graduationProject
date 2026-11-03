@@ -3,6 +3,7 @@ package com.donghuan.acquire;
 import com.donghuan.adapter.ProtocolAdapter;
 import com.donghuan.common.DeviceConfig;
 import com.donghuan.common.DeviceProperties;
+import com.donghuan.model.Protocol;
 import com.donghuan.stream.MessageStream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,7 +24,7 @@ public class AcquisitionService implements CommandLineRunner {
     private final List<ProtocolAdapter> adapters;
     private final MessageStream messageStream;
 
-    private Map<String, ProtocolAdapter> adapterMap;
+    private Map<Protocol, ProtocolAdapter> adapterMap;
 
     @Override
     public void run(String... args) throws Exception {
@@ -34,7 +35,7 @@ public class AcquisitionService implements CommandLineRunner {
         for (DeviceConfig device : deviceProperties.getDevices()) {
             ProtocolAdapter adapter = adapterMap.get(device.getProtocol());
             if (adapter == null) {
-                log.warn("未找到协议适配器: {}", device.getProtocol());
+                log.warn("未找到协议适配器:deviceId:{}: {}", device.getId(), device.getProtocol());
                 continue;
             }
 
