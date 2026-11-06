@@ -1,0 +1,55 @@
+# 复制到项目根目录（C:\Learn\graduationProject\donghuan\docker-compose.yml）
+# 只起中间件：MySQL 8.4 + EMQX 5.8。后端仍在 IDE 里跑，连 localhost，配置零改动。
+#
+# 启动：docker compose up -d
+# 状态：docker compose ps
+# 日志：docker compose logs -f emqx
+# 停止：docker compose down
+# 连库：mysql -h 127.0.0.1 -P 3306 -uroot -p123456 -e "show databases;"
+# 控制台：http://localhost:18083  （admin / public）
+
+name: donghuan
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: dh-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: "123456"
+      MYSQL_DATABASE: "donghuan"
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./sql/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  emqx:
+    image: emqx/emqx:5.8
+    container_name: dh-emqx
+    restart: unless-stopped
+    environment:
+      EMQX_DASHBOARD__DEFAULT_USERNAME: admin
+      EMQX_DASHBOARD__DEFAULT_PASSWORD: public
+    ports:
+      - "1883:1883"    # MQTT
+      - "8083:8083"    # MQTT over WebSocket
+      - "18083:18083"  # Dashboard
+    volumes:
+      - emqx-data:/opt/emqx/data
+      - emqx-log:/opt/emqx/log
+
+volumes:
+  mysql-data:
+  emqx-data:
+  emqx-log:
