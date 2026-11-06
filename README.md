@@ -18,41 +18,61 @@
 
 #### 情况 A：MySQL 运行在 Docker 中（推荐，本项目验证环境）
 
-**1）确认容器名和密码**
+**1）下载并安装 docker**
+##### 1. 打开 <https://www.docker.com/products/docker-desktop/>，下载 Docker Desktop for Windows。
 
-```bash
-docker ps --filter "name=mysql"
-docker inspect mysql --format '{{range .Config.Env}}{{println .}}{{end}}' | grep MYSQL
+安装完成后在 powershell /终端确认
+```powershell
+docker --version
+docker compose version
+```
+##### 2. 运行 compose 启动 MySQL 与 EMQX
 
-# PowerShell
-Get-Content sql/schema.sql | docker exec -i mysql mysql -u root --password=你的密码
+进入项目根目录（Windows 示例）：
+```powershell
+cd C:\Learn\graduationProject\donghuan
+docker compose up -d
+```
+首次执行会拉取 `mysql:8.4` 和 `emqx/emqx:5.8`，需要等几分钟。容器名分别是 `dh-mysql` 和 `dh-emqx`。
 
-# CMD / Linux / macOS
-docker exec -i mysql mysql -u root --password=你的密码 < sql/schema.sql
+**数据卷为空时，MySQL 首次初始化会自动执行** **`schema.sql`** **和** **`seed.sql`**，所以全新环境这一步就是一键完成；已有数据卷会自动跳过，见 1.3。
 
-docker exec -it mysql mysql -u root -p -e "USE donghuan; SHOW TABLES;"
+确认状态：
+```powershell
+docker compose ps
 ```
 
-#### 情况 B：宿主机已安装 MySQL 客户端
+##### 3. 确认初始化结果
 
-```bash
-mysql -u root -p < sql/schema.sql
+全新容器首次启动会自动按顺序执行 `schema.sql` 和 `seed.sql`，等 MySQL 变成 `healthy` 后直接验证：
+```powershell
+docker compose exec mysql mysql -uroot -p123456 -e "use donghuan; select id, point_code, unit from point;"
+```
+期望返回 2 条，`unit` 分别是 `℃` 和 `%`。
 
-Get-Content sql/schema.sql | mysql -u root -p
+`seed.sql` 写入的内容：测试用户、设备 `th-01`、两个测点、4 条采样值、1 条 ACTIVE 告警。
+ACTIVE 告警会在应用启动时被回填进内存；只想测“新告警插入”时，先删掉它再启动。
+
+##### 4. 重置数据（可选）
+
+`down -v` 会删除数据卷（含 MySQL 与 EMQX 数据），再次 `up` 时自动重新建表并灌种子：
+```powershell
+docker compose down -v
+docker compose up -d
 ```
 
 ### 2. 修改配置
 
 #### 1）复制配置模板
 
-仓库里只保留 `application.properties.example`，本地配置不进 Git。
+编辑 `src/main/resources/application.properties`，把占位符换成实际值：
 
-```powershell
-Copy-Item src/main/resources/application.properties.example src/main/resources/application.properties
-
-# Linux / macOS
-cp src/main/resources/application.properties.example src/main/resources/application.properties
-
+```Propertise
+spring.datasource.url=jdbc:mysql://localhost:3306/donghuan?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+spring.datasource.username=root
+spring.datasource.password=123456
+mqtt.broker=tcp://localhost:1883
+donghuan.store.type=jdbc
 ```
 
 #### 2）修改数据库与 MQTT 配置
