@@ -16,17 +16,15 @@
 
 ### 1. 建库建表
 
-#### 情况 A：MySQL 运行在 Docker 中（推荐，本项目验证环境）
-
-**1）下载并安装 docker**
-##### 1. 打开 <https://www.docker.com/products/docker-desktop/>，下载 Docker Desktop for Windows。
+**下载并安装 docker**
+##### 1）. 打开 <https://www.docker.com/products/docker-desktop/>，下载 Docker Desktop for Windows。
 
 安装完成后在 powershell /终端确认
 ```powershell
 docker --version
 docker compose version
 ```
-##### 2. 运行 compose 启动 MySQL 与 EMQX
+##### 2）. 运行 compose 启动 MySQL 与 EMQX
 
 进入项目根目录（Windows 示例）：
 ```powershell
@@ -42,7 +40,7 @@ docker compose up -d
 docker compose ps
 ```
 
-##### 3. 确认初始化结果
+##### 3）. 确认初始化结果
 
 全新容器首次启动会自动按顺序执行 `schema.sql` 和 `seed.sql`，等 MySQL 变成 `healthy` 后直接验证：
 ```powershell
@@ -53,7 +51,7 @@ docker compose exec mysql mysql -uroot -p123456 -e "use donghuan; select id, poi
 `seed.sql` 写入的内容：测试用户、设备 `th-01`、两个测点、4 条采样值、1 条 ACTIVE 告警。
 ACTIVE 告警会在应用启动时被回填进内存；只想测“新告警插入”时，先删掉它再启动。
 
-##### 4. 重置数据（可选）
+##### 4）. 重置数据（可选）
 
 `down -v` 会删除数据卷（含 MySQL 与 EMQX 数据），再次 `up` 时自动重新建表并灌种子：
 ```powershell
@@ -63,7 +61,7 @@ docker compose up -d
 
 ### 2. 修改配置
 
-#### 1）复制配置模板
+#### 1）修改数据库用户名与密码
 
 编辑 `src/main/resources/application.properties`，把占位符换成实际值：
 
@@ -74,62 +72,36 @@ spring.datasource.password=123456
 mqtt.broker=tcp://localhost:1883
 donghuan.store.type=jdbc
 ```
+说明：
 
-#### 2）修改数据库与 MQTT 配置
-编辑 src/main/resources/application.properties，按本地环境改这四项：
-```bash
-spring.datasource.url=jdbc:mysql://localhost:3306/donghuan?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
-spring.datasource.username=root
-spring.datasource.password=你的MySQL密码
-mqtt.broker=tcp://localhost:1883
-donghuan.store.type=memory # 内存版没问题再改jdbc
+- 数据库密码必须与 `docker-compose.yml` 里的 `MYSQL_ROOT_PASSWORD` 一致
+
+- 采样数据按 UTC 存储，查询时传 `...Z` 或带偏移的时间
+
+启动前先确认账号密码和库名可用：
+```Powershell
+docker compose exec mysql mysql -uroot -p123456 -e "use donghuan; select count(*) from point;"
 ```
 
-#### 3）验证配置能连上库
-启动应用前，先单独确认账号密码和库名没问题：
-
-```bash
-docker exec -it mysql mysql -u root -p -e "USE donghuan; SELECT COUNT(*) FROM point;"
-```
-
-### 3. 启动 EMQX
-
-#### 1）确认没有同名容器
-
-`docker run --name emqx` 遇到已存在的同名容器会报 `Conflict`，先检查：
-
-```bash
-docker ps -a --filter "name=emqx"
-```
-
-有残留就先删：
-
-```bash
-docker rm -f emqx
-```
-
-#### 2）启动 EMQX
-
-```bash
-docker run -d --name emqx -p 1883:1883 -p 18083:18083 emqx/emqx:5.8.8
-```
-
-#### 3）确认启动成功
-
-```bash
-docker ps --filter "name=emqx"
-```
-
-### 4. 启动应用
+### 3. 启动应用
+```powershell
 mvn spring-boot:run
+```
 
-### 5. 启动模拟器（另开终端）
+### 4. 启动模拟器（另开终端）
+```powershell
 py simulator.py
+```
 
-### 6. 验证
+### 5. 验证
+```bash
 curl http://localhost:8080/api/devices
-
-curl http://localhost:8080/api/points/{deviceId}/{pointId}/latest
+curl http://localhost:8080/api/snapshots
+curl http://localhost:8080/api/points/th-01/temperature/latest
+curl "http://localhost:8080/api/points/th-01/temperature/range?start=2026-11-06T00:00:00Z&end=2026-11-07T00:00:00Z"
+curl http://localhost:8080/api/alarms/active
+curl -X POST http://localhost:8080/api/alarms/1/confirm
+```
 
 ## 现接口
 
@@ -146,29 +118,23 @@ curl http://localhost:8080/api/points/{deviceId}/{pointId}/latest
 
 ## 配置说明
 
-devices:
+配置已全部库化，设备与测点由 `device`、`point` 两张表驱动：
 
-  - id: th-01
-    
-    protocol: mqtt
-    
-    connection:
-    
-      topic: /device/th-01/data
-    
-    points:
-    
-      - pointId: temperature
-        
-        metric: 温度
-        
-        jsonPath: $.temperature
-        
-        unit: ℃
-        
-        min: 10
-        
-        max: 35
+| 表.字段                          | 作用                            |
+| ----------------------------- | ----------------------------- |
+| device.device\_code           | 设备标识，接口与 MQTT topic 使用        |
+| device.connection\_config     | MQTT topic，如 `donghuan/th/01` |
+| device.enabled                | 停用后不加载、不接入                    |
+| point.point\_code             | 测点标识，如 `temperature`          |
+| point.address                 | 取值 JsonPath，如 `$.temperature` |
+| point.time\_address           | 取样时间 JsonPath，如 `$.ts`        |
+| point.unit                    | 单位，如 `℃`                      |
+| point.min\_value / max\_value | 告警阈值                          |
+| point.freq\_seconds           | 采样间隔字段（当前节流固定 3 秒，未使用该字段）     |
+| point.enabled                 | 停用后不加载映射、不参与告警                |
+
+`seed.sql` 已按 `th-01` 写好，开箱可用；也可以直接改库调整设备与测点。
+报文缺 `ts` 时用服务器接收时间兜底。
 
 ## 项目结构
 
@@ -194,9 +160,45 @@ src/main/java/...
 
 └── web/controller/  REST 接口
 
+## 常见问题
+
+**已有数据卷，初始化脚本没执行**
+初始化脚本只在 `/var/lib/mysql` 为空时执行。可以 `docker compose down -v` 删卷重建，或手工导入：
+
+```powershell
+cmd /c "docker compose exec -T mysql mysql -uroot -p123456 < sql\schema.sql"
+cmd /c "docker compose exec -T mysql mysql -uroot -p123456 < sql\seed.sql"
+```
+
+注意 `schema.sql` 的建表语句没有 `if not exists`，不能对已经建过表的库重复执行，否则会报 `table already exists`。
+
+**导入 SQL 报 1064，或中文变成** **`?`**
+PowerShell 的 `<` 重定向和 `Get-Content |` 管道默认按 ANSI 编码，会破坏中文和 `℃`，请用上面的 `cmd /c` 写法。
+
+**改了 SQL 想重新灌数据**
+`docker compose down -v` 后 `up -d`，初始化脚本会自动重跑。注意会删除全部数据。
+
+**3306 / 1883 / 18083 端口被占用**
+改 `docker-compose.yml` 的端口映射，同时同步修改 `application.properties` 里的数据库端口或 `mqtt.broker`。
+
+**不想用 Docker 跑 MySQL**
+可以用本机 MySQL 8，手工执行 `sql/schema.sql` 和 `sql/seed.sql`，再改 `application.properties` 的连接信息；EMQX 仍可用 compose 或单独容器启动。
+
+
 ## 已知限制
-- 仅实现 MQTT 接入，Modbus 规划中
-- 无鉴权与权限控制
+- 量程校验仍写死 `-50 ~ 150`，未使用库中配置
+
+- 无鉴权与权限控制，确认接口固定使用 `user id=1`
+
 - 无前端页面
-- 单机部署，未做压测
-- MqttProtocolAdapter 当前为单例，多设备连接需改为 Map<deviceId, MqttClient>（修复中）
+
+- 单机单实例：快照、活跃告警、去重状态都在 JVM 内存，重启后快照与去重状态丢失（ACTIVE 告警会从库回填）
+
+- 采样节流固定 3 秒，未读取 `freq_seconds`
+
+- 0.1s 高频上报尚未压测
+
+- `latest` / `range` 只返回 `quality=OK` 的数据，BAD 数据会入库但对查询不可见
+
+- 设备断线不会产生“离线告警”，告警恢复依赖后续正常数据
+
