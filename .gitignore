@@ -31,3 +31,6 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Paho 文件持久化 ###
+donghuan_java_*

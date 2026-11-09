@@ -11,6 +11,7 @@ import org.eclipse.paho.client.mqttv3.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -48,6 +49,10 @@ public class MqttProtocolAdapter implements ProtocolAdapter {
             if (existing != null && existing.isConnected()) {
                 return;
             }
+            // 存在未连接
+            if (existing != null) {
+                disconnect(deviceId);
+            }
             // Paho 客户端id
             String clientId = "donghuan_java_" + deviceId;
             client = new MqttClient(broker, clientId);
@@ -76,7 +81,7 @@ public class MqttProtocolAdapter implements ProtocolAdapter {
                 // 回调签名
                 @Override
                 public void messageArrived(String topic, MqttMessage message) throws Exception {
-                    String payload = new String(message.getPayload());
+                    String payload = new String(message.getPayload(), StandardCharsets.UTF_8);
                     log.debug("收到MQTT：topic={}，payload={}", topic, payload);
 
                     //组装raw

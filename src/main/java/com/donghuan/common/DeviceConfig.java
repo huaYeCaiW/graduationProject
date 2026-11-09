@@ -29,7 +29,7 @@ public class DeviceConfig {
         private String metric;      //指标名
         private String unit;        //单位
         private String jsonPath;    //JSON路径
-        private String freq;        //采集频率
+        private Integer freq;        //采集频率
         private String timeJsonPath;// 采样时间路径
         private Double min;
         private Double max;
