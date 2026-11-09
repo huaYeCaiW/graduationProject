@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-//一台设备的配置，对应devices.yml里devices列表的每个元素
+//一台设备的配置，启动时由 DeviceProperties 从 device / point 表载入
 @Data
 public class DeviceConfig {
 
@@ -29,7 +29,7 @@ public class DeviceConfig {
         private String metric;      //指标名
         private String unit;        //单位
         private String jsonPath;    //JSON路径
-        private String freq;        //采集频率
+        private Integer freq;       //采集频率（秒），对应 point.freq_seconds
         private String timeJsonPath;// 采样时间路径
         private Double min;
         private Double max;

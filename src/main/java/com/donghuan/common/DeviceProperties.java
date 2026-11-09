@@ -68,7 +68,9 @@ public class DeviceProperties {
             point.setUnit(rs.getString("unit"));
             point.setJsonPath(rs.getString("address"));
             point.setTimeJsonPath(rs.getString("time_address"));
-            point.setFreq(rs.getString("freq_seconds"));
+            // freq_seconds 允许为 null，getInt 会把 null 读成 0
+            int freq = rs.getInt("freq_seconds");
+            point.setFreq(rs.wasNull() ? null : freq);
 
             BigDecimal min = rs.getBigDecimal("min_value");
             BigDecimal max = rs.getBigDecimal("max_value");
@@ -79,6 +81,11 @@ public class DeviceProperties {
         });
 
         devicesByCode = Collections.unmodifiableMap(next);
+        if (next.isEmpty()) {
+            log.warn("设备配置为空：device 表无启用设备或 point 表无启用测点，数据将不会接入");
+        } else {
+            log.info("载入设备配置{}台", next.size());
+        }
         log.debug("载入设备配置{}", next);
     }
 
