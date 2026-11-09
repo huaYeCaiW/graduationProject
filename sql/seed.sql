@@ -17,10 +17,10 @@ values
 --    tenant_id 为 null 表示平台账号，可看全部租户数据
 insert ignore into user (id, username, password_hash, role, tenant_id, enabled)
 values
-    (1, 'admin',   '$2b$10$f/lvjN5Ef7IVgQMx5e.4EO/N4ZUJzvzyYWezRJmw9OKdH17uivm7q', 'admin',   null, 1),
-    (2, 'ops',     '$2b$10$f/lvjN5Ef7IVgQMx5e.4EO/N4ZUJzvzyYWezRJmw9OKdH17uivm7q', 'ops',     2,    1),
-    (3, 'farmer1', '$2b$10$f/lvjN5Ef7IVgQMx5e.4EO/N4ZUJzvzyYWezRJmw9OKdH17uivm7q', 'farmer',  3,    1),
-    (4, 'farmer2', '$2b$10$f/lvjN5Ef7IVgQMx5e.4EO/N4ZUJzvzyYWezRJmw9OKdH17uivm7q', 'farmer',  4,    1);
+    (1, 'admin',   '$2b$10$f/lvjN5Ef7IVgQMx5e.4EO/N4ZUJzvzyYWezRJmw9OKdH17uivm7q', 'ADMIN',   null, 1),
+    (2, 'ops',     '$2b$10$f/lvjN5Ef7IVgQMx5e.4EO/N4ZUJzvzyYWezRJmw9OKdH17uivm7q', 'OPS',     2,    1),
+    (3, 'farmer1', '$2b$10$f/lvjN5Ef7IVgQMx5e.4EO/N4ZUJzvzyYWezRJmw9OKdH17uivm7q', 'FARMER',  3,    1),
+    (4, 'farmer2', '$2b$10$f/lvjN5Ef7IVgQMx5e.4EO/N4ZUJzvzyYWezRJmw9OKdH17uivm7q', 'FARMER',  4,    1);
 
 -- 3) 设备：th-01 属于 farm-a（有模拟器数据），th-02 属于 farm-b（用于跨租户越权测试）
 insert ignore into device (id, device_code, tenant_id, name, protocol, connection_config, enabled)

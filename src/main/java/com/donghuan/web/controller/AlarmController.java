@@ -1,6 +1,8 @@
 package com.donghuan.web.controller;
 
+import com.donghuan.common.AuthConstants;
 import com.donghuan.model.AlarmValue;
+import com.donghuan.model.LoginUser;
 import com.donghuan.store.AlarmStore;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -13,8 +15,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AlarmController {
     private final AlarmStore alarmStore;
-    private static final long TEST_USER_ID = 1L;
-
 
     @GetMapping("/active")
     public List<AlarmValue> listActive() {
@@ -26,9 +26,9 @@ public class AlarmController {
         return alarmStore.findAll();
     }
 
-    // TODO五阶段改为Session中登陆的userId
     @PostMapping("/{id}/confirm")
-    public int confirm(@PathVariable long id) {
-        return alarmStore.confirm(id, TEST_USER_ID, Instant.now());
+    public int confirm(@PathVariable long id,
+                       @RequestAttribute(AuthConstants.REQUEST_USER) LoginUser user) {
+        return alarmStore.confirm(id, user.getId(), Instant.now());
     }
 }

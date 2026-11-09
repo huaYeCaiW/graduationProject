@@ -4,7 +4,6 @@ import com.donghuan.adapter.ProtocolAdapter;
 import com.donghuan.common.DeviceConfig;
 import com.donghuan.common.DeviceProperties;
 import com.donghuan.model.Protocol;
-import com.donghuan.stream.MessageStream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
@@ -22,7 +21,6 @@ public class AcquisitionService implements CommandLineRunner {
 
     private final DeviceProperties deviceProperties;
     private final List<ProtocolAdapter> adapters;
-    private final MessageStream messageStream;
 
     private Map<Protocol, ProtocolAdapter> adapterMap;
 
@@ -40,7 +38,6 @@ public class AcquisitionService implements CommandLineRunner {
             }
 
             adapter.connect(device);
-            adapter.subscribe(device, messageStream::emit);
             log.info("设备接入完成：id={}，protocol={}", device.getId(), device.getProtocol());
         }
     }

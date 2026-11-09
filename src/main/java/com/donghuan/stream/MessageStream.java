@@ -13,7 +13,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
 
 import java.time.Duration;
@@ -51,7 +50,7 @@ public class MessageStream {
                 .map(parser::parse)                   // RawMessage -> List<PointValue>
                 .flatMapIterable(list -> list)// List -> 拆成一个个 PointValue
                 .doOnNext(cleaner::convertUnit)
-                .flatMap(pv -> Mono.justOrEmpty(cleaner.verify(pv)))// 校验
+                .map(cleaner::verify)// 校验
                 .filter(cleaner::accept)
                 .share();
 

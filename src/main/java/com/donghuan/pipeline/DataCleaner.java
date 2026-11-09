@@ -1,6 +1,5 @@
 package com.donghuan.pipeline;
 
-import com.donghuan.common.DeviceProperties;
 import com.donghuan.common.PointKeys;
 import com.donghuan.model.PointValue;
 import com.donghuan.model.Quality;
@@ -10,7 +9,6 @@ import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -20,25 +18,20 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class DataCleaner {
 
     private final Map<String, Instant> lastAcceptedAt = new ConcurrentHashMap<>();
-    private final DeviceProperties deviceProperties;
     private final PointKeys keys;
+
     // 校验
-    // todo 配置缺失不可达，Optional意义不大建议更改
-    public Optional<PointValue> verify(PointValue pv) {
-        // 经过parse后数据配置一定存在
-        return deviceProperties.findDevice(pv.getDeviceId())
-                .flatMap(d -> d.findPoint(pv.getPointId()))
-                .map(p -> {
-                    // todo 判定使用固定值，要修改为从配置取
-            if (pv.getValue() < -50 || pv.getValue() > 150) {
-                log.debug("非法值deviceId：{}，pointId：{}",
-                        pv.getDeviceId(), pv.getPointId());
-                pv.setQuality(Quality.BAD.name());
-            } else {
-                pv.setQuality(Quality.OK.name());
-            }
-            return pv;
-        });
+    public PointValue verify(PointValue pv) {
+        // 经过parse后数据配置一定存在，此处不再重复查配置
+        // todo 判定使用固定值，要修改为从配置取
+        if (pv.getValue() < -50 || pv.getValue() > 150) {
+            log.debug("非法值deviceId：{}，pointId：{}",
+                    pv.getDeviceId(), pv.getPointId());
+            pv.setQuality(Quality.BAD.name());
+        } else {
+            pv.setQuality(Quality.OK.name());
+        }
+        return pv;
     }
 
     // 去重

@@ -1,4 +1,4 @@
-# 复制到项目根目录（C:\Learn\graduationProject\donghuan\docker-compose.yml）
+# 复制到项目根目录
 # 只起中间件：MySQL 8.4 + EMQX 5.8。后端仍在 IDE 里跑，连 localhost，配置零改动。
 #
 # 启动：docker compose up -d

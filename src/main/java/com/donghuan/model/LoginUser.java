@@ -9,6 +9,6 @@ public class LoginUser {
 
     private Long id;
     private String username;
-    private String role;
+    private Role role;
     private Long tenantId;
 }

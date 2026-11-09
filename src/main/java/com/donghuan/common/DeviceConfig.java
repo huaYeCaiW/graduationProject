@@ -7,7 +7,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-//一台设备的配置，对应devices.yml里devices列表的每个元素
 @Data
 public class DeviceConfig {
 

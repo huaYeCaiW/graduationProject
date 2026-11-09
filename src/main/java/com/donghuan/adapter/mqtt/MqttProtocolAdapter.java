@@ -15,7 +15,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Consumer;
 
 @Slf4j
 @Component
@@ -87,7 +86,7 @@ public class MqttProtocolAdapter implements ProtocolAdapter {
                     //组装raw
                     RawMessage raw = new RawMessage();
                     raw.setDeviceId(device.getId());
-                    raw.setProtocol("mqtt");
+                    raw.setProtocol(Protocol.MQTT);
                     raw.setTopic(topic);
                     raw.setPayload(payload);
                     raw.setReceivedAt(Instant.now());
@@ -122,12 +121,6 @@ public class MqttProtocolAdapter implements ProtocolAdapter {
                 } catch (MqttException ignored) {}
             }
         }
-    }
-
-    // TODO 4阶段实现
-    @Override
-    public void subscribe(DeviceConfig device, Consumer<RawMessage> sink) {
-
     }
 
     @Override

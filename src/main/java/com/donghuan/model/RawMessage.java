@@ -7,7 +7,7 @@ import java.time.Instant;
 @Data
 public class RawMessage {
     private String deviceId;
-    private String protocol;        //协议类型
+    private Protocol protocol;        //协议类型
     private String payload;         //原始内容，String意在对于初始数据作宽松处理
     private Instant receivedAt;
     private  String topic;//接收时间

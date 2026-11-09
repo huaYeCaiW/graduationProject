@@ -1,0 +1,37 @@
+@host = http://localhost:8080
+
+### 1. 登录
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "password"
+}
+
+### 2. 当前用户
+GET {{host}}/api/auth/me
+
+### 3. 设备列表（应 200）
+GET {{host}}/api/devices
+
+### 4. 退出
+POST {{host}}/api/auth/logout
+
+### 5. 用 farmer1 登录
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "farmer1",
+  "password": "password"
+}
+
+### 6. 越权测试（应 403）
+POST {{host}}/api/devices
+Content-Type: application/json
+
+{}
+
+### 确认告警（应 403）
+POST http://localhost:8080/api/alarms/1/confirm
