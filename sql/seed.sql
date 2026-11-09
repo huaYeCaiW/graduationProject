@@ -12,13 +12,13 @@ insert ignore into tenant (id, code, name, contact, phone, status) values
 (3, 'farm-a',   '一号大棚',   '张农',       '13800000002', 'ACTIVE'),
 (4, 'farm-b',   '二号大棚',   '王农',       '13800000003', 'ACTIVE');
 
--- 2) 用户：password_hash 均为 bcrypt("password") 的已知测试值
+-- 2) 用户：password_hash 均为 bcrypt("password") 的已校验测试值
 --    tenant_id 为 null 表示平台账号，可看全部租户数据
 insert ignore into user (id, username, password_hash, role, tenant_id, enabled) values
-(1, 'admin',   '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'admin',   null, 1),
-(2, 'ops',     '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'ops',     2,    1),
-(3, 'farmer1', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'farmer',  3,    1),
-(4, 'farmer2', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'farmer',  4,    1);
+(1, 'admin',   '$2b$10$f/lvjN5Ef7IVgQMx5e.4EO/N4ZUJzvzyYWezRJmw9OKdH17uivm7q', 'admin',   null, 1),
+(2, 'ops',     '$2b$10$f/lvjN5Ef7IVgQMx5e.4EO/N4ZUJzvzyYWezRJmw9OKdH17uivm7q', 'ops',     2,    1),
+(3, 'farmer1', '$2b$10$f/lvjN5Ef7IVgQMx5e.4EO/N4ZUJzvzyYWezRJmw9OKdH17uivm7q', 'farmer',  3,    1),
+(4, 'farmer2', '$2b$10$f/lvjN5Ef7IVgQMx5e.4EO/N4ZUJzvzyYWezRJmw9OKdH17uivm7q', 'farmer',  4,    1);
 
 -- 3) 设备：th-01 属于 farm-a（有模拟器数据），th-02 属于 farm-b（用于跨租户越权测试）
 insert ignore into device (id, device_code, tenant_id, name, protocol, connection_config, enabled) values
