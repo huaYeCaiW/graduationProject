@@ -3,6 +3,7 @@ package com.donghuan.store.jdbc;
 import com.donghuan.common.DeviceProperties;
 import com.donghuan.model.PointValue;
 import com.donghuan.model.Quality;
+import com.donghuan.model.TenantScope;
 import com.donghuan.store.PointRefCache;
 import com.donghuan.store.PointStore;
 import lombok.RequiredArgsConstructor;
@@ -28,10 +29,10 @@ public class JdbcPointStore implements PointStore {
     @Override
     public void save(PointValue value) {
 
-        OptionalLong ref = refCache.find(value.getDeviceId(), value.getPointId());
+        OptionalLong ref = refCache.find(value.getDeviceCode(), value.getPointCode());
 
         if (ref.isEmpty()){
-            log.warn("点位未映射，跳过存值：{} : {}", value.getDeviceId(), value.getPointId());
+            log.warn("点位未映射，跳过存值：{} : {}", value.getDeviceCode(), value.getPointCode());
             return;
         }
 
@@ -50,10 +51,13 @@ public class JdbcPointStore implements PointStore {
     }
 
     @Override
-    public Optional<PointValue> findLatest(String deviceId, String pointId) {
+    public Optional<PointValue> findLatest(TenantScope scope, String deviceCode, String pointCode) {
+        if (!canAccess(scope, deviceCode)) {
+            return Optional.empty();
+        }
 
         // 获取point_value表中point_id类型为bigint
-        OptionalLong ref = refCache.find(deviceId, pointId);
+        OptionalLong ref = refCache.find(deviceCode, pointCode);
         if (ref.isEmpty()) return Optional.empty();
 
         String sql = "select value, sample_at, quality " +
@@ -64,8 +68,8 @@ public class JdbcPointStore implements PointStore {
         List<PointValue> list = jdbcTemplate.query(sql,
                 (rs, rowNum) -> {
                     PointValue pv = new PointValue();
-                            pv.setDeviceId(deviceId);
-                            pv.setPointId(pointId);
+                            pv.setDeviceCode(deviceCode);
+                            pv.setPointCode(pointCode);
                             pv.setValue(rs.getDouble("value"));
                             pv.setSampledAt(rs.getTimestamp("sample_at").toInstant());
                             pv.setQuality(rs.getString("quality"));
@@ -75,8 +79,12 @@ public class JdbcPointStore implements PointStore {
     }
 
     @Override
-    public List<PointValue> findByRange(String deviceId, String pointId, Instant startTime, Instant endTime) {
-        OptionalLong ref = refCache.find(deviceId, pointId);
+    public List<PointValue> findByRange(TenantScope scope, String deviceCode, String pointCode, Instant startTime, Instant endTime) {
+        if (!canAccess(scope, deviceCode)) {
+            return List.of();
+        }
+
+        OptionalLong ref = refCache.find(deviceCode, pointCode);
         if (ref.isEmpty()) return List.of();
 
         String sql = "select value, sample_at, quality from point_value " +
@@ -86,8 +94,8 @@ public class JdbcPointStore implements PointStore {
         return jdbcTemplate.query(sql,
                 (rs, rowNum) -> {
                     PointValue pv = new PointValue();
-                    pv.setDeviceId(deviceId);
-                    pv.setPointId(pointId);
+                    pv.setDeviceCode(deviceCode);
+                    pv.setPointCode(pointCode);
                     pv.setValue(rs.getDouble("value"));
                     pv.setQuality(rs.getString("quality"));
                     pv.setSampledAt(rs.getTimestamp("sample_at").toInstant());
@@ -96,7 +104,11 @@ public class JdbcPointStore implements PointStore {
     }
 
     @Override
-    public boolean updateThreshold(String deviceCode, String pointCode, Double min, Double max) {
+    public boolean updateThreshold(TenantScope scope, String deviceCode, String pointCode, Double min, Double max) {
+        if (!canAccess(scope, deviceCode)) {
+            return false;
+        }
+
         OptionalLong ref = refCache.find(deviceCode, pointCode);
 
         if (ref.isEmpty()) return false;
@@ -118,5 +130,15 @@ public class JdbcPointStore implements PointStore {
 
             return true;
         }
+    }
+
+    // 设备归属校验
+    private boolean canAccess(TenantScope scope, String deviceCode) {
+        if (scope.seeAll()) {
+            return true;
+        }
+        return deviceProperties.findDevice(deviceCode)
+                .map(d -> scope.canSee(d.getTenantId()))
+                .orElse(false);
     }
 }

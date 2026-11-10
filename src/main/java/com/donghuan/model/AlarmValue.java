@@ -19,4 +19,5 @@ public class AlarmValue {
     private Long confirmedBy;
     private Instant confirmedAt;
     private Instant recoveredAt;
+    private Long maintainedBy;
 }

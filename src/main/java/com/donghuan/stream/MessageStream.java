@@ -75,7 +75,7 @@ public class MessageStream {
 
         //采样存储
         valuesFlux.subscribe(pv ->{
-            String key = keys.key(pv.getDeviceId(), pv.getPointId());
+            String key = keys.key(pv.getDeviceCode(), pv.getPointCode());
             Instant last = saved.get(key);
             // 内存空，直接落库，并存内存
             if (last == null) {

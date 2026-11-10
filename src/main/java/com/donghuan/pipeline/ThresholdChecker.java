@@ -19,8 +19,8 @@ public class ThresholdChecker {
     public Optional<ThresholdResult> check(PointValue pv){
 
                     //找到测点配置
-        return deviceProperties.findDevice(pv.getDeviceId())
-                .flatMap(d -> d.findPoint(pv.getPointId()))
+        return deviceProperties.findDevice(pv.getDeviceCode())
+                .flatMap(d -> d.findPoint(pv.getPointCode()))
                 .map(point -> {
                     //找到配置后判断
                     if (point.getMin() != null && pv.getValue() < point.getMin()) {

@@ -33,12 +33,12 @@ public class AcquisitionService implements CommandLineRunner {
         for (DeviceConfig device : deviceProperties.getDevices()) {
             ProtocolAdapter adapter = adapterMap.get(device.getProtocol());
             if (adapter == null) {
-                log.warn("未找到协议适配器:deviceId:{}: {}", device.getId(), device.getProtocol());
+                log.warn("未找到协议适配器:deviceCode:{}: {}", device.getDeviceCode(), device.getProtocol());
                 continue;
             }
 
             adapter.connect(device);
-            log.info("设备接入完成：id={}，protocol={}", device.getId(), device.getProtocol());
+            log.info("设备接入完成：deviceCode={}，protocol={}", device.getDeviceCode(), device.getProtocol());
         }
     }
 }

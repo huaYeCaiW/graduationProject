@@ -38,22 +38,22 @@ public class MqttProtocolAdapter implements ProtocolAdapter {
 
     @Override
     public void connect(DeviceConfig device) {
-        // deviceId 做key
-        String deviceId = device.getId();
+        // deviceCode 做key
+        String deviceCode = device.getDeviceCode();
         MqttClient client = null;
 
         try {
-            MqttClient existing = clients.get(deviceId);
+            MqttClient existing = clients.get(deviceCode);
             // 已连接
             if (existing != null && existing.isConnected()) {
                 return;
             }
             // 存在未连接
             if (existing != null) {
-                disconnect(deviceId);
+                disconnect(deviceCode);
             }
             // Paho 客户端id
-            String clientId = "donghuan_java_" + deviceId;
+            String clientId = "donghuan_java_" + deviceCode;
             client = new MqttClient(broker, clientId);
 
             MqttClient bound = client;
@@ -65,10 +65,10 @@ public class MqttProtocolAdapter implements ProtocolAdapter {
                     try {
                         bound.subscribe(topic, 1);
                         if (reconnect) {
-                            log.info("MQTT重连成功，已重新订阅：topic={}, deviceId={}", topic, deviceId);
+                            log.info("MQTT重连成功，已重新订阅：topic={}, deviceCode={}", topic, deviceCode);
                         }
                     } catch (MqttException e) {
-                        log.warn("重新订阅失败：topic={}, deviceId={}", topic, deviceId);
+                        log.warn("重新订阅失败：topic={}, deviceCode={}", topic, deviceCode);
                     }
                 }
 
@@ -85,7 +85,7 @@ public class MqttProtocolAdapter implements ProtocolAdapter {
 
                     //组装raw
                     RawMessage raw = new RawMessage();
-                    raw.setDeviceId(device.getId());
+                    raw.setDeviceCode(device.getDeviceCode());
                     raw.setProtocol(Protocol.MQTT);
                     raw.setTopic(topic);
                     raw.setPayload(payload);
@@ -110,8 +110,8 @@ public class MqttProtocolAdapter implements ProtocolAdapter {
             // 连broker
             bound.connect(options);
 
-            clients.put(deviceId, client);
-            log.info("√ MQTT连接成功：broker={}，topic={}，deviceId={}", broker, device.getConnection().getTopic(), device.getId());
+            clients.put(deviceCode, client);
+            log.info("√ MQTT连接成功：broker={}，topic={}，deviceCode={}", broker, device.getConnection().getTopic(), device.getDeviceCode());
 
         } catch (MqttException e) {
             log.error("× MQTT连接失败：{}", e.getMessage());
@@ -124,8 +124,8 @@ public class MqttProtocolAdapter implements ProtocolAdapter {
     }
 
     @Override
-    public void disconnect(String deviceId) {
-        MqttClient client = clients.remove(deviceId);
+    public void disconnect(String deviceCode) {
+        MqttClient client = clients.remove(deviceCode);
         if (client == null) {
             return;
         }
@@ -133,7 +133,7 @@ public class MqttProtocolAdapter implements ProtocolAdapter {
             if (client.isConnected()) {
                 client.disconnect();
             }
-            log.info("已断开MQTT：deviceId={}", deviceId);
+            log.info("已断开MQTT：deviceCode={}", deviceCode);
         } catch (MqttException e) {
             log.warn("MQTT断开异常：{}", e.getMessage());
         } finally {

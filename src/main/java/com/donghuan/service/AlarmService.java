@@ -1,8 +1,6 @@
 package com.donghuan.service;
 
-import com.donghuan.model.AlarmValue;
-import com.donghuan.model.PointValue;
-import com.donghuan.model.Quality;
+import com.donghuan.model.*;
 import com.donghuan.pipeline.ThresholdChecker;
 import com.donghuan.store.AlarmStore;
 import com.donghuan.store.PointRefCache;
@@ -11,9 +9,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
@@ -35,7 +36,7 @@ public class AlarmService implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
 
-        alarmStore.findActive().forEach(a -> activeByPoint.put(a.getPointId(), a));
+        alarmStore.findAllActive().forEach(a -> activeByPoint.put(a.getPointId(), a));
         log.info("警告回填{}条", activeByPoint.size());
     }
 
@@ -43,7 +44,7 @@ public class AlarmService implements ApplicationRunner {
         // 校验结果BAD直接跳过
         if (pv.getQuality().equals(Quality.BAD.name())) return;
         // 取映射id,alarm.point_id,是point的自增id对应一个point
-        OptionalLong optionalPointId = refCache.find(pv.getDeviceId(), pv.getPointId());
+        OptionalLong optionalPointId = refCache.find(pv.getDeviceCode(), pv.getPointCode());
         // 存阈值判断后的result
         Optional<ThresholdChecker.ThresholdResult> optionalResult = thresholdChecker.check(pv);
         if (optionalResult.isEmpty()) return;
@@ -86,5 +87,21 @@ public class AlarmService implements ApplicationRunner {
             activeByPoint.remove(activeAlarm.getPointId());
             log.debug("恢复{}", activeAlarm);
         }
+    }
+
+    public List<AlarmValue> listActive(LoginUser user) {
+        TenantScope scope = TenantScope.of(user);
+        return alarmStore.findActive(scope);
+    }
+
+    public List<AlarmValue> listAll(LoginUser user) {
+        TenantScope scope = TenantScope.of(user);
+        return alarmStore.findAll(scope);
+    }
+
+    public void confirm(LoginUser user, long alarmId) {
+        TenantScope scope = TenantScope.of(user);
+        boolean ok = alarmStore.confirm(scope, alarmId, user.getId(), Instant.now());
+        if (!ok) throw new ResponseStatusException(HttpStatus.NOT_FOUND);
     }
 }

@@ -1,11 +1,11 @@
 package com.donghuan.web.controller;
 
+import com.donghuan.common.AuthConstants;
+import com.donghuan.model.LoginUser;
 import com.donghuan.model.PointValue;
-import com.donghuan.store.PointSnapshot;
+import com.donghuan.service.SnapshotService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
@@ -13,10 +13,10 @@ import java.util.Map;
 @RequestMapping("/api/snapshots")
 @RequiredArgsConstructor
 public class SnapshotController {
-    private final PointSnapshot pointSnapshot;
+    private final SnapshotService snapshotService;
 
     @GetMapping
-    public Map<String, PointValue> snapshots() {
-        return pointSnapshot.findAllSnapshots();
+    public Map<String, PointValue> snapshots(@RequestAttribute(AuthConstants.REQUEST_USER) LoginUser user) {
+        return snapshotService.findAllSnapshots(user);
     }
 }

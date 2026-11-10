@@ -25,8 +25,8 @@ public class DataCleaner {
         // 经过parse后数据配置一定存在，此处不再重复查配置
         // todo 判定使用固定值，要修改为从配置取
         if (pv.getValue() < -50 || pv.getValue() > 150) {
-            log.debug("非法值deviceId：{}，pointId：{}",
-                    pv.getDeviceId(), pv.getPointId());
+            log.debug("非法值deviceCode：{}，pointCode：{}",
+                    pv.getDeviceCode(), pv.getPointCode());
             pv.setQuality(Quality.BAD.name());
         } else {
             pv.setQuality(Quality.OK.name());
@@ -36,10 +36,10 @@ public class DataCleaner {
 
     // 去重
     public boolean accept (PointValue pv) {
-        String key = keys.key(pv.getDeviceId(), pv.getPointId());
+        String key = keys.key(pv.getDeviceCode(), pv.getPointCode());
         Instant ts = pv.getSampledAt();
         if (ts == null) {
-            log.debug("时间为空，不做去重deviceId：{}，pointId：{}", pv.getDeviceId(), pv.getPointId());
+            log.debug("时间为空，不做去重deviceCode：{}，pointCode：{}", pv.getDeviceCode(), pv.getPointCode());
             return true;
         }
         // 可在compute中调用
@@ -53,7 +53,7 @@ public class DataCleaner {
             }
             return ts;
         });
-        if (!accepted.get()) log.debug("重复deviceId：{}， pointId：{}", pv.getDeviceId(), pv.getPointId());
+        if (!accepted.get()) log.debug("重复deviceCode：{}， pointCode：{}", pv.getDeviceCode(), pv.getPointCode());
         return accepted.get();
     }
 
@@ -62,7 +62,7 @@ public class DataCleaner {
         if ("℉".equals(pv.getUnit())) {
             pv.setValue((pv.getValue() - 32) / 1.8);
             pv.setUnit("℃");
-            log.debug("deviceId：{}，pointId：{}单位“℉”已转为“℃”", pv.getDeviceId(), pv.getPointId());
+            log.debug("deviceCode：{}，pointCode：{}单位“℉”已转为“℃”", pv.getDeviceCode(), pv.getPointCode());
         }
     }
 }

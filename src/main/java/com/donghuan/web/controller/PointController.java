@@ -1,13 +1,13 @@
 package com.donghuan.web.controller;
 
+import com.donghuan.common.AuthConstants;
+import com.donghuan.model.LoginUser;
 import com.donghuan.model.PointValue;
-import com.donghuan.store.PointStore;
+import com.donghuan.service.PointService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.List;
@@ -17,31 +17,30 @@ import java.util.List;
 @RequiredArgsConstructor
 public class PointController {
 
-    private final PointStore pointStore;
+    private final PointService pointService;
 
-    @GetMapping("/{deviceId}/{pointId}/latest")
-    public ResponseEntity<?> latest(@PathVariable String deviceId, @PathVariable String pointId) {
-        return pointStore.findLatest(deviceId, pointId).map(ResponseEntity :: ok)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+    @GetMapping("/{deviceCode}/{pointCode}/latest")
+    public PointValue latest(@PathVariable String deviceCode, @PathVariable String pointCode,
+                                    @RequestAttribute(AuthConstants.REQUEST_USER) LoginUser user) {
+        return pointService.findLatest(user, deviceCode, pointCode);
     }
 
-    @GetMapping("/{deviceId}/{pointId}/range")
-    public List<PointValue> range(@PathVariable String deviceId,
-                                  @PathVariable String pointId,
+    @GetMapping("/{deviceCode}/{pointCode}/range")
+    public List<PointValue> range(@PathVariable String deviceCode,
+                                  @PathVariable String pointCode,
                                   @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant start,
-                                  @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant end
+                                  @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant end,
+                                  @RequestAttribute(AuthConstants.REQUEST_USER) LoginUser user
                                   ) {
-        return pointStore.findByRange(deviceId, pointId,start, end);
+        return pointService.findByRange(user, deviceCode, pointCode, start, end);
     }
 
-    @PutMapping("/{deviceId}/{pointId}/threshold")
-    public ResponseEntity<Void> threshold(@PathVariable String deviceId,
-                                            @PathVariable String pointId,
-                                            @RequestBody ThresholdReq req) {
-        boolean ok = pointStore.updateThreshold(deviceId, pointId, req.min(), req.max());
-        if (!ok) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
-        }
+    @PutMapping("/{deviceCode}/{pointCode}/threshold")
+    public ResponseEntity<Void> threshold(@PathVariable String deviceCode,
+                                          @PathVariable String pointCode,
+                                          @RequestBody ThresholdReq req,
+                                          @RequestAttribute(AuthConstants.REQUEST_USER) LoginUser user) {
+        pointService.updateThreshold(user, deviceCode, pointCode, req.min(), req.max());
         return ResponseEntity.ok().build();
     }
     record ThresholdReq(Double min, Double max){}

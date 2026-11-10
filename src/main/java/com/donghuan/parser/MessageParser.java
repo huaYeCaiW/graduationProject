@@ -24,7 +24,7 @@ public class MessageParser {
 
 
     public List<PointValue>  parse(RawMessage raw) {
-        DeviceConfig device = deviceProperties.findDevice(raw.getDeviceId())
+        DeviceConfig device = deviceProperties.findDevice(raw.getDeviceCode())
                 .orElse(null);
 
         if(device == null){
@@ -50,9 +50,9 @@ public class MessageParser {
             Instant sampleAt = optTs.isEmpty() ? raw.getReceivedAt() : Instant.ofEpochMilli(optTs.get().longValue());
             //组装Value
             PointValue pv = new PointValue();
-            pv.setDeviceId(raw.getDeviceId());
+            pv.setDeviceCode(raw.getDeviceCode());
             pv.setMetric(point.getMetric());
-            pv.setPointId(point.getPointId());
+            pv.setPointCode(point.getPointCode());
             pv.setValue(opt.get());
             pv.setUnit(point.getUnit());
             pv.setTimestamp(raw.getReceivedAt());

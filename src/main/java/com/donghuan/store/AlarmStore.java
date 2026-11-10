@@ -1,6 +1,7 @@
 package com.donghuan.store;
 
 import com.donghuan.model.AlarmValue;
+import com.donghuan.model.TenantScope;
 
 import java.time.Instant;
 import java.util.List;
@@ -14,9 +15,12 @@ public interface AlarmStore {
     // 恢复正常
     void markRecovered(long id, Instant recoveredAt);
     // 人工确认
-    int confirm(long id, long userId, Instant confirmedAt);
-    // 启动查alarm
-    List<AlarmValue> findActive();
+    boolean confirm(TenantScope scope, long alarmId, long userId, Instant confirmedAt);
+    // 启动查 alarm 仅供回填
+    List<AlarmValue> findAllActive();
+    // 查实时 ACTIVE
+    List<AlarmValue> findActive(TenantScope scope);
+    // 查警告记录
+    List<AlarmValue> findAll(TenantScope scope);
 
-    List<AlarmValue> findAll();
 }

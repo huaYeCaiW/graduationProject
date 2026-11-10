@@ -37,14 +37,21 @@ values
     (4, 2, 'humidity',    '湿度', '$.humidity',    '$.ts', 'float', '%',   60, 30.000, 70.000, 1);
 
 -- 5) 采样数据：让 /api/points/{device}/{point}/latest 与 /range 不依赖 MQTT 就能出结果
+--    th-01（point_id 1、2）与 th-02（point_id 3、4）各两条，便于做跨租户对照
+--    注意：固定主键只适用于空库首次初始化；若库中已有 MQTT 采集数据占用了 id 5~8，
+--    本节会被 insert ignore 跳过，此时请去掉 id 列单独执行本节
 insert ignore into point_value (id, point_id, value, sample_at, sys_ts, quality)
 values
     (1, 1, 23.500, utc_timestamp(3) - interval 10 minute, utc_timestamp(3) - interval 10 minute, 'OK'),
     (2, 2, 45.000, utc_timestamp(3) - interval 10 minute, utc_timestamp(3) - interval 10 minute, 'OK'),
     (3, 1, 39.500, utc_timestamp(3) - interval  3 minute, utc_timestamp(3) - interval  3 minute, 'OK'),
-    (4, 2, 61.000, utc_timestamp(3) - interval  3 minute, utc_timestamp(3) - interval  3 minute, 'OK');
+    (4, 2, 61.000, utc_timestamp(3) - interval  3 minute, utc_timestamp(3) - interval  3 minute, 'OK'),
+    (5, 3, 24.000, utc_timestamp(3) - interval 10 minute, utc_timestamp(3) - interval 10 minute, 'OK'),
+    (6, 4, 52.000, utc_timestamp(3) - interval 10 minute, utc_timestamp(3) - interval 10 minute, 'OK'),
+    (7, 3, 33.000, utc_timestamp(3) - interval  3 minute, utc_timestamp(3) - interval  3 minute, 'OK'),
+    (8, 4, 58.000, utc_timestamp(3) - interval  3 minute, utc_timestamp(3) - interval  3 minute, 'OK');
 
--- 6) 一条 ACTIVE 告警：应用启动时会由 findActive 回填到内存，
+-- 6) 一条 ACTIVE 告警：应用启动时会由 findAllActive 回填到内存，
 --    随后若温度恢复到 18~38，会走 markRecovered；可用于验证回填与收敛
 --    只想测“新告警插入”时，把这行删掉再启动
 insert ignore into alarm
@@ -52,7 +59,7 @@ insert ignore into alarm
 values
     (1, 1, 39.500, 38.000, 'MAX', 'ACTIVE', utc_timestamp(3) - interval 3 minute, utc_timestamp(3) - interval 3 minute);
 
--- 7) 自检：应返回 4 租户 / 4 用户 / 2 设备 / 4 测点 / 4 采样 / 1 告警
+-- 7) 自检：应返回 4 租户 / 4 用户 / 2 设备 / 4 测点 / 8 采样 / 1 告警
 -- select
 --   (select count(*) from tenant) as tenants,
 --   (select count(*) from user) as users,

@@ -10,8 +10,9 @@ import java.util.Optional;
 @Data
 public class DeviceConfig {
 
-    private String id;                             //设备Id
+    private String deviceCode;                     //设备编码，对应 device.device_code
     private String name;
+    private Long tenantId;
     private Protocol protocol;                       //协议mqtt/modbus
     private Connection connection;                 //连接信息
     private List<Point> points = new ArrayList<>();//测点列表
@@ -24,7 +25,7 @@ public class DeviceConfig {
 
     @Data
     public static class Point {
-        private String pointId;     //测点Id
+        private String pointCode;   //测点编码，对应 point.point_code
         private String metric;      //指标名
         private String unit;        //单位
         private String jsonPath;    //JSON路径
@@ -35,8 +36,8 @@ public class DeviceConfig {
     }
 
     // 查测点
-    public Optional<Point> findPoint(String pointId) {
-        return points.stream().filter(p -> p.getPointId().equals(pointId))
+    public Optional<Point> findPoint(String pointCode) {
+        return points.stream().filter(p -> p.getPointCode().equals(pointCode))
                 .findFirst();
     }
 }

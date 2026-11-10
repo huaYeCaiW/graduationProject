@@ -1,12 +1,15 @@
 package com.donghuan.store;
 
+import com.donghuan.common.DeviceProperties;
 import com.donghuan.common.PointKeys;
 import com.donghuan.model.PointValue;
 import com.donghuan.model.Quality;
+import com.donghuan.model.TenantScope;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -15,12 +18,13 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 public class PointSnapshot implements LatestValueStore {
 
-    public final Map<String, PointValue> latestSnapshot = new ConcurrentHashMap<>();
+    private final Map<String, PointValue> latestSnapshot = new ConcurrentHashMap<>();
     private final PointKeys keys;
+    private final DeviceProperties deviceProperties;
 
     @Override
     public void snapshot(PointValue pv) {
-        String key = keys.key(pv.getDeviceId(), pv.getPointId());
+        String key = keys.key(pv.getDeviceCode(), pv.getPointCode());
 
         latestSnapshot.compute(key, (k, p) -> {
             // 确认 pv 质量 BAD 返回 p
@@ -36,9 +40,19 @@ public class PointSnapshot implements LatestValueStore {
         log.debug("快照{}", pv);
     }
 
+    // 返回快照
     @Override
-    // 直接返回内存副本
-    public Map<String, PointValue> findAllSnapshots() {
-        return Map.copyOf(latestSnapshot);
+    public Map<String, PointValue> findAllSnapshots(TenantScope scope) {
+        if (scope.seeAll()) return Map.copyOf(latestSnapshot);
+
+        Map<String, PointValue> result = new HashMap<>();
+        latestSnapshot.forEach((key, value) -> {
+            if (deviceProperties.findDevice(value.getDeviceCode())
+                    .map(d -> scope.canSee(d.getTenantId()))
+                    .orElse(false)) {
+                result.put(key, value);
+            }
+        });
+        return result;
     }
 }

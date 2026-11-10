@@ -13,7 +13,7 @@ import java.util.*;
 @Slf4j
 @RequiredArgsConstructor
 @Component
-public class    DeviceProperties {
+public class DeviceProperties {
 
     private final JdbcTemplate jdbcTemplate;
     private volatile Map<String, DeviceConfig> devicesByCode = Map.of();
@@ -33,22 +33,25 @@ public class    DeviceProperties {
                         "p.unit, " +
                         "p.freq_seconds, " +
                         "p.min_value, " +
-                        "p.max_value " +
+                        "p.max_value, " +
+                        "d.tenant_id " +
                 "from device d " +
                 "left join point p " +
                         "on p.device_id = d.id " +
                         "and p.enabled = 1 " +
                 "where d.enabled = 1 " +
-                "order by d.device_code, p.point_code;";
+                "order by d.device_code, p.point_code";
 
         jdbcTemplate.query(sql, rs -> {
             String deviceCode = rs.getString("device_code");
             DeviceConfig device = next.get(deviceCode);
             if (device == null) {
                 device = new DeviceConfig();
-                device.setId(deviceCode);
+                device.setDeviceCode(deviceCode);
                 device.setName(rs.getString("device_name"));
                 device.setProtocol(Protocol.from(rs.getString("protocol")));
+                long tenantId = rs.getLong("tenant_id");
+                device.setTenantId(rs.wasNull() ? null : tenantId);
 
                 DeviceConfig.Connection connection = new DeviceConfig.Connection();
                 connection.setTopic(rs.getString("connection_config"));
@@ -63,7 +66,7 @@ public class    DeviceProperties {
             }
 
             DeviceConfig.Point point = new DeviceConfig.Point();
-            point.setPointId(pointCode);
+            point.setPointCode(pointCode);
             point.setMetric(rs.getString("point_name"));
             point.setUnit(rs.getString("unit"));
             point.setJsonPath(rs.getString("address"));
@@ -88,8 +91,8 @@ public class    DeviceProperties {
     }
 
     // 查设备
-    public Optional<DeviceConfig> findDevice (String deviceId) {
-        return Optional.ofNullable(devicesByCode.get(deviceId));
+    public Optional<DeviceConfig> findDevice (String deviceCode) {
+        return Optional.ofNullable(devicesByCode.get(deviceCode));
     }
 
     // 获取所有设备

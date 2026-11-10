@@ -1,15 +1,11 @@
 package com.donghuan.web.controller;
 
+import com.donghuan.common.AuthConstants;
 import com.donghuan.common.DeviceConfig;
-import com.donghuan.common.DeviceProperties;
+import com.donghuan.model.LoginUser;
+import com.donghuan.service.DeviceService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.Collection;
 
@@ -17,19 +13,19 @@ import java.util.Collection;
 @RequestMapping("/api/devices")
 @RequiredArgsConstructor
 public class DeviceController {
-    private final DeviceProperties deviceProperties;
+    private final DeviceService deviceService;
 
     // 取所有设备
     @GetMapping
-    public Collection<DeviceConfig> list() {
-        return deviceProperties.getDevices();
+    public Collection<DeviceConfig> list(@RequestAttribute(AuthConstants.REQUEST_USER) LoginUser user) {
+        return deviceService.list(user);
     }
 
-    // {deviceId} 是占位符——浏览器请求 /api/devices/th-01 时
+    // {deviceCode} 是占位符——浏览器请求 /api/devices/th-01 时
     // Spring 把 "th-01" 这个字符串塞给方法参数 @PathVariable
-    @GetMapping("/{deviceId}")
-    public ResponseEntity<?> get(@PathVariable String deviceId) {
-        return deviceProperties.findDevice(deviceId).map(ResponseEntity :: ok)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+    @GetMapping("/{deviceCode}")
+    public DeviceConfig get(@PathVariable String deviceCode,
+                            @RequestAttribute(AuthConstants.REQUEST_USER) LoginUser user) {
+        return deviceService.get(user, deviceCode);
     }
 }
