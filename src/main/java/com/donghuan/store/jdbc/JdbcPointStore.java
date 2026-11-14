@@ -132,6 +132,33 @@ public class JdbcPointStore implements PointStore {
         }
     }
 
+    @Override
+    public boolean updateRange(TenantScope scope, String deviceCode, String pointCode, Double rangeMin, Double rangeMax) {
+        if (!canAccess(scope, deviceCode)) {
+            return false;
+        }
+
+        OptionalLong ref = refCache.find(deviceCode, pointCode);
+        if (ref.isEmpty()) return false;
+
+        int row = jdbcTemplate.update("update point " +
+                        "set range_min = coalesce(?, range_min), " +
+                        "range_max = coalesce(?, range_max) " +
+                        "where id = ?",
+                rangeMin, rangeMax, ref.getAsLong());
+
+        if (row == 0) return false;
+        // 同步内存，DataCleaner 下一批数据就按新量程判断
+        deviceProperties.findDevice(deviceCode)
+                .flatMap(d -> d.findPoint(pointCode))
+                .ifPresent(point -> {
+                    if (rangeMin != null) point.setRangeMin(rangeMin);
+                    if (rangeMax != null) point.setRangeMax(rangeMax);
+                });
+
+        return true;
+    }
+
     // 设备归属校验
     private boolean canAccess(TenantScope scope, String deviceCode) {
         if (scope.seeAll()) {

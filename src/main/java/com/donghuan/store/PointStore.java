@@ -16,4 +16,6 @@ public interface PointStore {
     List<PointValue> findByRange(TenantScope scope, String deviceCode, String pointCode, Instant startTime, Instant endTime);
 
     boolean updateThreshold(TenantScope scope, String deviceCode, String pointCode, Double min, Double max);
+
+    boolean updateRange(TenantScope scope, String deviceCode, String pointCode, Double rangeMin, Double rangeMax);
 }

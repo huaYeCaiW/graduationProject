@@ -1,0 +1,11 @@
+# Modbus TCP 从站模拟器，供本地联调使用
+# 构建上下文为 scripts/ 目录：docker build -f scripts/Dockerfile.modbus scripts
+FROM python:3.11-slim
+
+RUN pip install --no-cache-dir pymodbus==3.6.9
+
+WORKDIR /app
+COPY modbus_simulator.py /app/
+
+EXPOSE 5020
+CMD ["python", "modbus_simulator.py", "--host", "0.0.0.0", "--port", "5020"]

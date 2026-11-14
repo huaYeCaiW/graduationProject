@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>管理端 - 东环合作社</title>
+    <link rel="stylesheet" href="/css/common.css">
+</head>
+<body>
+<div id="app" v-cloak>
+    <header class="topbar">
+        <div class="brand"><span class="brand-dot"></span>东环合作社 · 管理端</div>
+        <div class="topbar-right">
+            <nav class="nav">
+                <a v-for="item in navItems" :key="item.href" class="nav-link"
+                   :class="{ active: item.href === '/admin.html' }" :href="item.href">{{ item.label }}</a>
+            </nav>
+            <span v-if="user">{{ user.username }}（{{ roleLabel }}）</span>
+            <button class="btn btn-sm" @click="logout">退出登录</button>
+        </div>
+    </header>
+
+    <main class="page">
+        <div class="tabs">
+            <button class="tab" v-for="t in tabs" :key="t.key" :class="{ active: tab === t.key }"
+                    @click="switchTab(t.key)">{{ t.label }}</button>
+        </div>
+
+        <!-- 服务配置 -->
+        <section v-show="tab === 'services'">
+            <div class="toolbar">
+                <button class="btn btn-primary" @click="openServiceCreate">新增服务项</button>
+                <button class="btn" :disabled="loading" @click="loadServices">{{ loading ? '刷新中...' : '刷新' }}</button>
+                <span class="hint" style="margin-left: auto">停用服务不影响已开通的大棚</span>
+            </div>
+            <div class="card">
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>编码</th>
+                            <th>名称</th>
+                            <th>说明</th>
+                            <th>棚数上限</th>
+                            <th>单棚测点上限</th>
+                            <th>指标模板</th>
+                            <th>状态</th>
+                            <th>操作</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr v-for="s in services" :key="s.code">
+                            <td class="code">{{ s.code }}</td>
+                            <td>{{ s.name }}</td>
+                            <td class="muted">{{ s.description || '-' }}</td>
+                            <td>{{ s.maxGreenhouses }}</td>
+                            <td>{{ s.maxPointsPerGreenhouse }}</td>
+                            <td>
+                                <span class="tag" v-for="m in s.metrics" :key="m.metricCode">
+                                    {{ m.name }}<span v-if="m.unit">（{{ m.unit }}）</span>
+                                </span>
+                            </td>
+                            <td>
+                                <span class="badge" :class="{ 'badge-muted': !s.enabled }">{{ s.enabled ? '启用' : '停用' }}</span>
+                            </td>
+                            <td @click.stop>
+                                <div class="row-actions">
+                                    <button class="btn btn-sm" @click="openServiceEdit(s)">编辑</button>
+                                    <button v-if="s.enabled" class="btn btn-sm btn-danger" @click="disableService(s)">停用</button>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr v-if="!services.length">
+                            <td colspan="8" class="empty">暂无服务项</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- 申请审批 -->
+        <section v-show="tab === 'applications'">
+            <div class="toolbar">
+                <select v-model="appStatus" style="width: 160px" @change="loadApplications">
+                    <option value="">全部状态</option>
+                    <option value="PENDING">待审批</option>
+                    <option value="APPROVED">已通过</option>
+                    <option value="REJECTED">已驳回</option>
+                    <option value="PROVISIONED">已开通</option>
+                </select>
+                <button class="btn" @click="loadApplications">刷新</button>
+                <span class="hint" style="margin-left: auto">驳回必须填写说明，种植户端可见</span>
+            </div>
+            <div class="card">
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>申请单号</th>
+                            <th>租户</th>
+                            <th>申请人</th>
+                            <th>服务</th>
+                            <th>棚数</th>
+                            <th>联系方式</th>
+                            <th>状态</th>
+                            <th>申请时间</th>
+                            <th>驳回原因</th>
+                            <th>操作</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr v-for="a in applications" :key="a.id">
+                            <td class="code">{{ a.applicationNo }}</td>
+                            <td>{{ a.tenantName }}</td>
+                            <td>{{ a.applicantName }}</td>
+                            <td>{{ a.serviceName }}</td>
+                            <td>{{ a.greenhouseCount }}</td>
+                            <td>
+                                {{ a.contact }}
+                                <div class="muted" v-if="a.phone">{{ a.phone }}</div>
+                            </td>
+                            <td>
+                                <span class="badge" :class="appBadgeClass(a.status)">{{ appStatusLabel(a.status) }}</span>
+                            </td>
+                            <td class="muted">{{ fmtTime(a.createdAt) }}</td>
+                            <td class="muted">{{ a.rejectReason || '-' }}</td>
+                            <td @click.stop>
+                                <div class="row-actions" v-if="a.status === 'PENDING'">
+                                    <button class="btn btn-sm btn-primary" @click="approve(a)">通过</button>
+                                    <button class="btn btn-sm btn-danger" @click="openReject(a)">驳回</button>
+                                </div>
+                                <span v-else-if="a.provisionTaskId" class="muted code">任务 #{{ a.provisionTaskId }}</span>
+                                <span v-else class="muted">-</span>
+                            </td>
+                        </tr>
+                        <tr v-if="!applications.length">
+                            <td colspan="10" class="empty">暂无申请</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- 开通任务 -->
+        <section v-show="tab === 'tasks'">
+            <div class="toolbar">
+                <select v-model="taskStatus" style="width: 160px" @change="loadTasks">
+                    <option value="">全部状态</option>
+                    <option value="PENDING">待开通</option>
+                    <option value="RUNNING">开通中</option>
+                    <option value="DONE">已完成</option>
+                    <option value="CANCELLED">已取消</option>
+                </select>
+                <button class="btn" @click="loadTasks">刷新</button>
+                <a class="btn" href="/ops.html" style="margin-left: auto">去运维端执行</a>
+            </div>
+            <div class="card">
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>任务号</th>
+                            <th>申请单号</th>
+                            <th>租户</th>
+                            <th>服务</th>
+                            <th>棚数</th>
+                            <th>状态</th>
+                            <th>创建时间</th>
+                            <th>完成时间</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr v-for="t in tasks" :key="t.id" :class="{ selected: selectedTask && selectedTask.id === t.id }"
+                            @click="selectTask(t)">
+                            <td class="code">#{{ t.id }}</td>
+                            <td class="code">{{ t.applicationNo }}</td>
+                            <td>{{ t.tenantName }}</td>
+                            <td>{{ t.serviceName }}</td>
+                            <td>{{ t.greenhouseCount }}</td>
+                            <td>
+                                <span class="badge" :class="taskBadgeClass(t.status)">{{ taskStatusLabel(t.status) }}</span>
+                            </td>
+                            <td class="muted">{{ fmtTime(t.createdAt) }}</td>
+                            <td class="muted">{{ fmtTime(t.finishedAt) }}</td>
+                        </tr>
+                        <tr v-if="!tasks.length">
+                            <td colspan="8" class="empty">暂无开通任务</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div v-if="selectedTask" class="card-body" style="border-top: 1px solid var(--border)">
+                    <div class="detail-grid">
+                        <div class="detail-item"><span class="label">任务号</span>#{{ selectedTask.id }}</div>
+                        <div class="detail-item"><span class="label">申请单号</span>{{ selectedTask.applicationNo }}</div>
+                        <div class="detail-item"><span class="label">租户</span>{{ selectedTask.tenantName }}</div>
+                        <div class="detail-item"><span class="label">服务</span>{{ selectedTask.serviceName }}</div>
+                        <div class="detail-item"><span class="label">申请棚数</span>{{ selectedTask.greenhouseCount }}</div>
+                        <div class="detail-item"><span class="label">状态</span>{{ taskStatusLabel(selectedTask.status) }}</div>
+                        <div class="detail-item"><span class="label">备注</span>{{ selectedTask.remark || '-' }}</div>
+                    </div>
+                    <div class="section-title">指标模板</div>
+                    <span class="tag" v-for="m in selectedTask.metrics" :key="m.metricCode">
+                        {{ m.name }}<span v-if="m.unit">（{{ m.unit }}）</span>
+                    </span>
+                    <div class="section-title">已纳入设备</div>
+                    <div class="table-wrap" v-if="selectedTask.devices && selectedTask.devices.length">
+                        <table>
+                            <thead>
+                            <tr><th>设备编码</th><th>名称</th><th>协议</th><th>测点数</th></tr>
+                            </thead>
+                            <tbody>
+                            <tr v-for="d in selectedTask.devices" :key="d.deviceCode">
+                                <td class="code">{{ d.deviceCode }}</td>
+                                <td>{{ d.name }}</td>
+                                <td>{{ protocolLabel(d.protocol) }}</td>
+                                <td>{{ d.pointCount }}</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div v-else class="hint">尚未开通，暂无设备快照</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 数据概览 -->
+        <section v-show="tab === 'overview'">
+            <div class="stat-grid">
+                <div class="stat-card"><div class="stat-value">{{ devices.length }}</div><div class="stat-label">启用设备</div></div>
+                <div class="stat-card"><div class="stat-value">{{ pointCount }}</div><div class="stat-label">测点总数</div></div>
+                <div class="stat-card"><div class="stat-value">{{ activeAlarms.length }}</div><div class="stat-label">活动告警</div></div>
+                <div class="stat-card"><div class="stat-value">{{ pendingApplications.length }}</div><div class="stat-label">待审批申请</div></div>
+                <div class="stat-card"><div class="stat-value">{{ pendingTasks.length }}</div><div class="stat-label">待开通任务</div></div>
+            </div>
+            <div class="split-2">
+                <section class="card">
+                    <div class="card-head">
+                        <span class="card-title">最近活动告警（{{ activeAlarms.length }}）</span>
+                        <button class="btn btn-sm" @click="loadOverview">刷新</button>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                            <tr><th>ID</th><th>测点</th><th>类型</th><th>值 / 阈值</th><th>时间</th></tr>
+                            </thead>
+                            <tbody>
+                            <tr v-for="a in activeAlarms.slice(0, 10)" :key="a.id">
+                                <td class="code">#{{ a.id }}</td>
+                                <td class="code">#{{ a.pointId }}</td>
+                                <td>{{ a.limitType === 'MAX' ? '上限' : '下限' }}</td>
+                                <td>{{ a.value }} / {{ a.threshold }}</td>
+                                <td class="muted">{{ fmtTime(a.sampleAt) }}</td>
+                            </tr>
+                            <tr v-if="!activeAlarms.length">
+                                <td colspan="5" class="empty">暂无活动告警</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+                <section class="card">
+                    <div class="card-head">
+                        <span class="card-title">待审批申请</span>
+                        <a class="link" @click="switchTab('applications')">查看全部</a>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                            <tr><th>申请单号</th><th>租户</th><th>棚数</th></tr>
+                            </thead>
+                            <tbody>
+                            <tr v-for="a in pendingApplications.slice(0, 5)" :key="a.id">
+                                <td class="code">{{ a.applicationNo }}</td>
+                                <td>{{ a.tenantName }}</td>
+                                <td>{{ a.greenhouseCount }}</td>
+                            </tr>
+                            <tr v-if="!pendingApplications.length">
+                                <td colspan="3" class="empty">暂无待审批申请</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+        </section>
+    </main>
+
+    <!-- 服务项编辑 -->
+    <div class="modal-mask" v-if="serviceModal.open" @click.self="serviceModal.open = false">
+        <div class="modal" style="width: 880px">
+            <h3>{{ serviceModal.mode === 'create' ? '新增服务项' : '编辑服务项' }}</h3>
+            <div class="form-grid">
+                <div class="form-item">
+                    <label>服务编码</label>
+                    <input v-model.trim="serviceForm.code" :disabled="serviceModal.mode === 'edit'"
+                           placeholder="如 greenhouse-basic">
+                </div>
+                <div class="form-item">
+                    <label>服务名称</label>
+                    <input v-model.trim="serviceForm.name" placeholder="如 标准大棚监测服务">
+                </div>
+                <div class="form-item full">
+                    <label>服务说明</label>
+                    <textarea v-model.trim="serviceForm.description" placeholder="服务内容与适用范围"></textarea>
+                </div>
+                <div class="form-item">
+                    <label>大棚数上限</label>
+                    <input type="number" min="1" max="100" v-model.number="serviceForm.maxGreenhouses">
+                </div>
+                <div class="form-item">
+                    <label>单棚测点上限</label>
+                    <input type="number" min="1" max="100" v-model.number="serviceForm.maxPointsPerGreenhouse">
+                </div>
+                <div class="form-item">
+                    <label>状态</label>
+                    <label class="checkbox-line"><input type="checkbox" v-model="serviceForm.enabled"> 启用</label>
+                </div>
+            </div>
+
+            <div class="section-title">指标模板 <span class="hint">开通时按此生成测点骨架</span></div>
+            <div class="metric-editor" v-for="(m, index) in serviceForm.metrics" :key="index">
+                <div class="metric-head">
+                    <strong>指标 {{ index + 1 }}</strong>
+                    <button class="btn btn-sm btn-danger" @click="removeMetric(index)">删除</button>
+                </div>
+                <div class="metric-grid">
+                    <div class="form-item">
+                        <label>指标编码</label>
+                        <input v-model.trim="m.metricCode" placeholder="temperature">
+                    </div>
+                    <div class="form-item">
+                        <label>指标名称</label>
+                        <input v-model.trim="m.name" placeholder="温度">
+                    </div>
+                    <div class="form-item">
+                        <label>单位</label>
+                        <input v-model.trim="m.unit" placeholder="℃">
+                    </div>
+                    <div class="form-item">
+                        <label>数据类型</label>
+                        <select v-model="m.dataType">
+                            <option value="double">double</option>
+                            <option value="uint16">uint16</option>
+                            <option value="int16">int16</option>
+                            <option value="uint32">uint32</option>
+                            <option value="int32">int32</option>
+                            <option value="float32">float32</option>
+                            <option value="bool">bool</option>
+                        </select>
+                    </div>
+                    <div class="form-item">
+                        <label>默认阈值下限</label>
+                        <input type="number" step="any" v-model.number="m.defaultMin" placeholder="不设置留空">
+                    </div>
+                    <div class="form-item">
+                        <label>默认阈值上限</label>
+                        <input type="number" step="any" v-model.number="m.defaultMax" placeholder="不设置留空">
+                    </div>
+                    <div class="form-item">
+                        <label>物理量程下限</label>
+                        <input type="number" step="any" v-model.number="m.rangeMin" placeholder="不校验留空">
+                    </div>
+                    <div class="form-item">
+                        <label>物理量程上限</label>
+                        <input type="number" step="any" v-model.number="m.rangeMax" placeholder="不校验留空">
+                    </div>
+                    <div class="form-item">
+                        <label>采集周期（秒）</label>
+                        <input type="number" min="1" v-model.number="m.freqSeconds" placeholder="默认 5">
+                    </div>
+                </div>
+            </div>
+            <button class="btn btn-sm" @click="addMetric">+ 添加指标</button>
+            <div class="form-error">{{ serviceError }}</div>
+            <div class="modal-actions">
+                <button class="btn" @click="serviceModal.open = false">取消</button>
+                <button class="btn btn-primary" :disabled="saving" @click="saveService">
+                    {{ saving ? '保存中...' : '保存' }}
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 驳回申请 -->
+    <div class="modal-mask" v-if="rejectModal.open" @click.self="rejectModal.open = false">
+        <div class="modal">
+            <h3>驳回申请 {{ rejectModal.applicationNo }}</h3>
+            <div class="form-item">
+                <label>驳回原因（必填，≤255 字）</label>
+                <textarea v-model.trim="rejectModal.reason" placeholder="说明不通过的原因，种植户端可见"></textarea>
+            </div>
+            <div class="form-error">{{ rejectModal.error }}</div>
+            <div class="modal-actions">
+                <button class="btn" @click="rejectModal.open = false">取消</button>
+                <button class="btn btn-danger" :disabled="saving" @click="submitReject">
+                    {{ saving ? '提交中...' : '确认驳回' }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="/js/vue.global.prod.js"></script>
+<script src="/js/api.js"></script>
+<script>
+    const { createApp } = Vue;
+
+    function numOrNull(value) {
+        if (value === '' || value === null || value === undefined) return null;
+        const number = Number(value);
+        return Number.isNaN(number) ? null : number;
+    }
+
+    function emptyMetric() {
+        return {
+            metricCode: '', name: '', unit: '', dataType: 'double',
+            defaultMin: '', defaultMax: '', rangeMin: '', rangeMax: '', freqSeconds: 5
+        };
+    }
+
+    createApp({
+        data() {
+            return {
+                user: null,
+                tab: 'services',
+                tabs: [
+                    { key: 'services', label: '服务配置' },
+                    { key: 'applications', label: '申请审批' },
+                    { key: 'tasks', label: '开通任务' },
+                    { key: 'overview', label: '数据概览' }
+                ],
+                loading: false,
+                saving: false,
+                services: [],
+                applications: [],
+                tasks: [],
+                selectedTask: null,
+                appStatus: '',
+                taskStatus: '',
+                devices: [],
+                activeAlarms: [],
+                overviewApplications: [],
+                overviewTasks: [],
+                serviceModal: { open: false, mode: 'create' },
+                serviceForm: { code: '', name: '', description: '', maxGreenhouses: 2, maxPointsPerGreenhouse: 6, enabled: true, metrics: [] },
+                serviceError: '',
+                rejectModal: { open: false, id: null, applicationNo: '', reason: '', error: '' },
+                pollTimer: null
+            };
+        },
+        computed: {
+            roleLabel() {
+                return this.user ? roleText(this.user.role) : '';
+            },
+            navItems() {
+                if (!this.user) return [];
+                return [
+                    { label: '管理端', href: '/admin.html' },
+                    { label: '设备管理', href: '/devices.html' },
+                    { label: '实时监测', href: '/monitor.html' }
+                ];
+            },
+            pointCount() {
+                return this.devices.reduce((sum, d) => sum + (d.points || []).length, 0);
+            },
+            pendingApplications() {
+                return this.overviewApplications.filter(a => a.status === 'PENDING');
+            },
+            pendingTasks() {
+                return this.overviewTasks.filter(t => t.status === 'PENDING');
+            }
+        },
+        mounted() {
+            this.init();
+            this.pollTimer = setInterval(() => {
+                if (this.tab === 'applications') this.loadApplications();
+                else if (this.tab === 'tasks') this.loadTasks();
+                else if (this.tab === 'overview') this.loadOverview();
+            }, 3000);
+        },
+        beforeUnmount() {
+            clearInterval(this.pollTimer);
+        },
+        methods: {
+            async init() {
+                try {
+                    this.user = await API.get('/api/auth/me');
+                    await Promise.all([this.loadServices(), this.loadApplications(), this.loadTasks(), this.loadOverview()]);
+                } catch (e) {
+                    // 401 已由 API 封装跳转
+                }
+            },
+            switchTab(key) {
+                this.tab = key;
+                if (key === 'services') this.loadServices();
+                else if (key === 'applications') this.loadApplications();
+                else if (key === 'tasks') this.loadTasks();
+                else if (key === 'overview') this.loadOverview();
+            },
+            async loadServices() {
+                this.loading = true;
+                try {
+                    this.services = await API.get('/api/service-items') || [];
+                } catch (e) {
+                    showToast(e.message, 'error');
+                } finally {
+                    this.loading = false;
+                }
+            },
+            async loadApplications() {
+                try {
+                    const url = '/api/service-applications' +
+                        (this.appStatus ? '?status=' + encodeURIComponent(this.appStatus) : '');
+                    this.applications = await API.get(url) || [];
+                } catch (e) {
+                    showToast(e.message, 'error');
+                }
+            },
+            async loadTasks() {
+                try {
+                    const url = '/api/provision-tasks' +
+                        (this.taskStatus ? '?status=' + encodeURIComponent(this.taskStatus) : '');
+                    this.tasks = await API.get(url) || [];
+                } catch (e) {
+                    showToast(e.message, 'error');
+                }
+            },
+            async loadOverview() {
+                try {
+                    const [devices, alarms, applications, tasks] = await Promise.all([
+                        API.get('/api/devices'),
+                        API.get('/api/alarms/active'),
+                        API.get('/api/service-applications'),
+                        API.get('/api/provision-tasks')
+                    ]);
+                    this.devices = devices || [];
+                    this.activeAlarms = alarms || [];
+                    this.overviewApplications = applications || [];
+                    this.overviewTasks = tasks || [];
+                } catch (e) {
+                    showToast(e.message, 'error');
+                }
+            },
+            async selectTask(task) {
+                try {
+                    this.selectedTask = await API.get('/api/provision-tasks/' + task.id);
+                } catch (e) {
+                    showToast(e.message, 'error');
+                }
+            },
+            openServiceCreate() {
+                this.serviceError = '';
+                this.serviceForm = {
+                    code: '', name: '', description: '',
+                    maxGreenhouses: 2, maxPointsPerGreenhouse: 6,
+                    enabled: true, metrics: [emptyMetric()]
+                };
+                this.serviceModal = { open: true, mode: 'create' };
+            },
+            openServiceEdit(service) {
+                this.serviceError = '';
+                this.serviceForm = {
+                    code: service.code,
+                    name: service.name,
+                    description: service.description || '',
+                    maxGreenhouses: service.maxGreenhouses,
+                    maxPointsPerGreenhouse: service.maxPointsPerGreenhouse,
+                    enabled: service.enabled,
+                    metrics: (service.metrics || []).map(m => ({
+                        metricCode: m.metricCode,
+                        name: m.name,
+                        unit: m.unit || '',
+                        dataType: m.dataType || 'double',
+                        defaultMin: m.defaultMin == null ? '' : m.defaultMin,
+                        defaultMax: m.defaultMax == null ? '' : m.defaultMax,
+                        rangeMin: m.rangeMin == null ? '' : m.rangeMin,
+                        rangeMax: m.rangeMax == null ? '' : m.rangeMax,
+                        freqSeconds: m.freqSeconds == null ? '' : m.freqSeconds
+                    }))
+                };
+                this.serviceModal = { open: true, mode: 'edit' };
+            },
+            addMetric() {
+                this.serviceForm.metrics.push(emptyMetric());
+            },
+            removeMetric(index) {
+                this.serviceForm.metrics.splice(index, 1);
+            },
+            validateService() {
+                const f = this.serviceForm;
+                if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(f.code || '')) {
+                    return '服务编码只能包含字母、数字、下划线和中划线，最长 64 字';
+                }
+                if (!f.name) return '服务名称不能为空';
+                if (!Number.isInteger(f.maxGreenhouses) || f.maxGreenhouses < 1 || f.maxGreenhouses > 100) {
+                    return '大棚数上限必须在 1~100';
+                }
+                if (!Number.isInteger(f.maxPointsPerGreenhouse) || f.maxPointsPerGreenhouse < 1 || f.maxPointsPerGreenhouse > 100) {
+                    return '单棚测点上限必须在 1~100';
+                }
+                if (!f.metrics.length) return '至少需要一个指标模板';
+                if (f.metrics.length > f.maxPointsPerGreenhouse) return '指标模板数量不能超过单棚测点上限';
+                const codes = new Set();
+                for (const m of f.metrics) {
+                    if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(m.metricCode || '')) {
+                        return '指标编码只能包含字母、数字、下划线和中划线';
+                    }
+                    if (codes.has(m.metricCode)) return '指标编码重复：' + m.metricCode;
+                    codes.add(m.metricCode);
+                    if (!m.name) return '指标名称不能为空';
+                    if (numOrNull(m.defaultMin) != null && numOrNull(m.defaultMax) != null
+                        && numOrNull(m.defaultMin) > numOrNull(m.defaultMax)) {
+                        return '指标 ' + m.metricCode + ' 的默认阈值下限不能大于上限';
+                    }
+                    if (numOrNull(m.rangeMin) != null && numOrNull(m.rangeMax) != null
+                        && numOrNull(m.rangeMin) > numOrNull(m.rangeMax)) {
+                        return '指标 ' + m.metricCode + ' 的物理量程下限不能大于上限';
+                    }
+                    const freq = numOrNull(m.freqSeconds);
+                    if (freq != null && freq <= 0) return '指标 ' + m.metricCode + ' 的采集周期必须大于 0';
+                }
+                return '';
+            },
+            async saveService() {
+                this.serviceError = this.validateService();
+                if (this.serviceError) return;
+
+                const f = this.serviceForm;
+                const body = {
+                    code: f.code,
+                    name: f.name,
+                    description: f.description || null,
+                    maxGreenhouses: f.maxGreenhouses,
+                    maxPointsPerGreenhouse: f.maxPointsPerGreenhouse,
+                    enabled: f.enabled,
+                    metrics: f.metrics.map(m => ({
+                        metricCode: m.metricCode,
+                        name: m.name,
+                        unit: m.unit || null,
+                        dataType: m.dataType || 'double',
+                        defaultMin: numOrNull(m.defaultMin),
+                        defaultMax: numOrNull(m.defaultMax),
+                        rangeMin: numOrNull(m.rangeMin),
+                        rangeMax: numOrNull(m.rangeMax),
+                        freqSeconds: numOrNull(m.freqSeconds)
+                    }))
+                };
+
+                this.saving = true;
+                try {
+                    if (this.serviceModal.mode === 'create') {
+                        await API.post('/api/service-items', body);
+                        showToast('服务项已创建', 'success');
+                    } else {
+                        await API.put('/api/service-items/' + encodeURIComponent(f.code), body);
+                        showToast('服务项已更新', 'success');
+                    }
+                    this.serviceModal.open = false;
+                    await this.loadServices();
+                } catch (e) {
+                    this.serviceError = e.message;
+                } finally {
+                    this.saving = false;
+                }
+            },
+            async disableService(service) {
+                if (!confirm('停用服务项 ' + service.name + '？种植户将无法再申请。')) return;
+                try {
+                    await API.del('/api/service-items/' + encodeURIComponent(service.code));
+                    showToast('服务项已停用', 'success');
+                    await this.loadServices();
+                } catch (e) {
+                    showToast(e.message, 'error');
+                }
+            },
+            async approve(application) {
+                if (!confirm('通过申请 ' + application.applicationNo + '？通过后将生成开通任务。')) return;
+                try {
+                    await API.post('/api/service-applications/' + application.id + '/approve', {});
+                    showToast('申请已通过，开通任务已生成', 'success');
+                    await Promise.all([this.loadApplications(), this.loadTasks()]);
+                } catch (e) {
+                    showToast(e.message, 'error');
+                }
+            },
+            openReject(application) {
+                this.rejectModal = {
+                    open: true, id: application.id,
+                    applicationNo: application.applicationNo, reason: '', error: ''
+                };
+            },
+            async submitReject() {
+                if (!this.rejectModal.reason) {
+                    this.rejectModal.error = '驳回原因不能为空';
+                    return;
+                }
+                this.saving = true;
+                try {
+                    await API.post('/api/service-applications/' + this.rejectModal.id + '/reject',
+                        { reason: this.rejectModal.reason });
+                    showToast('申请已驳回', 'success');
+                    this.rejectModal.open = false;
+                    await this.loadApplications();
+                } catch (e) {
+                    this.rejectModal.error = e.message;
+                } finally {
+                    this.saving = false;
+                }
+            },
+            appStatusLabel(status) {
+                return { PENDING: '待审批', APPROVED: '已通过', REJECTED: '已驳回', PROVISIONED: '已开通' }[status] || status;
+            },
+            appBadgeClass(status) {
+                return { PENDING: 'badge-warn', REJECTED: 'badge-danger' }[status] || '';
+            },
+            taskStatusLabel(status) {
+                return { PENDING: '待开通', RUNNING: '开通中', DONE: '已完成', CANCELLED: '已取消' }[status] || status;
+            },
+            taskBadgeClass(status) {
+                return { PENDING: 'badge-warn', CANCELLED: 'badge-muted', RUNNING: 'badge-warn' }[status] || '';
+            },
+            protocolLabel(protocol) {
+                return String(protocol || '').toUpperCase() === 'MODBUS' ? 'Modbus TCP' : 'MQTT';
+            },
+            fmtTime(value) {
+                if (!value) return '-';
+                const d = new Date(value);
+                const pad = n => String(n).padStart(2, '0');
+                return pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' +
+                    pad(d.getHours()) + ':' + pad(d.getMinutes());
+            },
+            async logout() {
+                try {
+                    await API.post('/api/auth/logout', {});
+                } catch (e) {
+                    // 忽略，统一回登录页
+                }
+                location.href = '/login.html';
+            }
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>

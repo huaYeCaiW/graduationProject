@@ -1,7 +1,10 @@
--- 部署测试用种子数据（阶段 1 租户化后）
+-- 部署测试用种子数据（阶段 1 租户化 + 阶段 8 服务目录）
 -- 执行前提：已执行 schema.sql
 -- 可重复执行：固定主键 + INSERT IGNORE；但不会覆盖已存在的行，需重置请先清表
 -- 时间统一按 UTC 写入，与 schema.sql 约定一致
+
+-- 显式声明客户端字符集，避免容器初始化时按 latin1 解释 UTF-8 脚本导致双重编码
+set names utf8mb4;
 
 use donghuan;
 
@@ -22,19 +25,30 @@ values
     (3, 'farmer1', '$2b$10$f/lvjN5Ef7IVgQMx5e.4EO/N4ZUJzvzyYWezRJmw9OKdH17uivm7q', 'FARMER',  3,    1),
     (4, 'farmer2', '$2b$10$f/lvjN5Ef7IVgQMx5e.4EO/N4ZUJzvzyYWezRJmw9OKdH17uivm7q', 'FARMER',  4,    1);
 
--- 3) 设备：th-01 属于 farm-a（有模拟器数据），th-02 属于 farm-b（用于跨租户越权测试）
+-- 3) 设备：th-01 / th-02 为 MQTT 设备（用于跨租户对照），mb-01 为 Modbus TCP 设备
+--    Modbus 的 connection_config = host:port:unitId
+--    若应用跑在容器内、模拟器跑在宿主机，把 127.0.0.1 换成 host.docker.internal
 insert ignore into device (id, device_code, tenant_id, name, protocol, connection_config, enabled)
 values
-    (1, 'th-01', 3, '一号大棚温湿度传感器', 'mqtt', 'donghuan/th/01', 1),                                                                                                   (2, 'th-02', 4, '二号大棚温湿度传感器', 'mqtt', 'donghuan/th/02', 1);
+    (1, 'th-01', 3, '一号大棚温湿度传感器', 'mqtt', 'donghuan/th/01', 1),
+    (2, 'th-02', 4, '二号大棚温湿度传感器', 'mqtt', 'donghuan/th/02', 1),
+    (3, 'mb-01', 3, '一号大棚 Modbus 环境控制器', 'modbus', '127.0.0.1:5020:1', 1);
 
--- 4) 测点：point_code 与模拟器报文一致，阈值用于告警验证
+-- 4) 测点：MQTT 的 address 为 JSON 路径；Modbus 的 address 为 寄存器类型:地址:数据类型[:缩放]
+--    Modbus 的 time_address 为空，采样时间取采集时间
+--    min_value/max_value 为告警阈值；range_min/range_max 为物理量程，为空表示不校验
 insert ignore into point
-(id, device_id, point_code, name, address, time_address, data_type, unit, freq_seconds, min_value, max_value, enabled)
+(id, device_id, point_code, name, address, time_address, data_type, unit, freq_seconds, min_value, max_value, range_min, range_max, enabled)
 values
-    (1, 1, 'temperature', '温度', '$.temperature', '$.ts', 'float', '℃',  60, 18.000, 38.000, 1),
-    (2, 1, 'humidity',    '湿度', '$.humidity',    '$.ts', 'float', '%',   60, 30.000, 70.000, 1),
-    (3, 2, 'temperature', '温度', '$.temperature', '$.ts', 'float', '℃',  60, 18.000, 38.000, 1),
-    (4, 2, 'humidity',    '湿度', '$.humidity',    '$.ts', 'float', '%',   60, 30.000, 70.000, 1);
+    (1, 1, 'temperature', '温度', '$.temperature', '$.ts', 'float', '℃',  60, 18.000, 38.000, -40.000, 80.000, 1),
+    (2, 1, 'humidity',    '湿度', '$.humidity',    '$.ts', 'float', '%',   60, 30.000, 70.000,   0.000, 100.000, 1),
+    (3, 2, 'temperature', '温度', '$.temperature', '$.ts', 'float', '℃',  60, 18.000, 38.000, -40.000, 80.000, 1),
+    (4, 2, 'humidity',    '湿度', '$.humidity',    '$.ts', 'float', '%',   60, 30.000, 70.000,   0.000, 100.000, 1),
+    (5, 3, 'temperature', '空气温度', 'holding:0:float32',    null, 'float32', '℃', 5, 15.000, 40.000, -40.000, 80.000, 1),
+    (6, 3, 'humidity',    '空气湿度', 'holding:2:float32',    null, 'float32', '%',  5, 30.000, 85.000,   0.000, 100.000, 1),
+    (7, 3, 'soil',        '土壤湿度', 'holding:4:uint16:0.1', null, 'uint16',  '%',  5, 10.000, 80.000,   0.000, 100.000, 1),
+    (8, 3, 'light',       '光照强度', 'holding:5:uint16',     null, 'uint16',  'lx', 5, 0.000, 20000.000,  0.000, 200000.000, 1),
+    (9, 3, 'door',        '卷帘状态', 'discrete:0:bool',      null, 'bool',    null, 5, null, null, null, null, 1);
 
 -- 5) 采样数据：让 /api/points/{device}/{point}/latest 与 /range 不依赖 MQTT 就能出结果
 --    th-01（point_id 1、2）与 th-02（point_id 3、4）各两条，便于做跨租户对照
@@ -59,11 +73,28 @@ insert ignore into alarm
 values
     (1, 1, 39.500, 38.000, 'MAX', 'ACTIVE', utc_timestamp(3) - interval 3 minute, utc_timestamp(3) - interval 3 minute);
 
--- 7) 自检：应返回 4 租户 / 4 用户 / 2 设备 / 4 测点 / 8 采样 / 1 告警
+-- 7) 服务目录：一个标准大棚监测服务 + 四项指标模板
+--    开通任务按 service_metric 生成测点骨架，默认阈值/量程/周期可在管理端修改
+insert ignore into service_item
+(id, code, name, description, max_greenhouses, max_points_per_greenhouse, enabled)
+values
+    (1, 'greenhouse-basic', '标准大棚监测服务', '温度、空气湿度、土壤湿度、光照四项基础监测', 2, 6, 1);
+
+insert ignore into service_metric
+(id, service_item_id, metric_code, name, unit, data_type, default_min, default_max, range_min, range_max, freq_seconds, sort_no)
+values
+    (1, 1, 'temperature', '温度',     '℃', 'double', 18, 38,    -40, 80,     5, 1),
+    (2, 1, 'humidity',    '空气湿度', '%',  'double', 30, 85,      0, 100,    5, 2),
+    (3, 1, 'soil',        '土壤湿度', '%',  'double', 10, 80,      0, 100,    5, 3),
+    (4, 1, 'light',       '光照',     'lx', 'double',  0, 50000,   0, 200000, 5, 4);
+
+-- 8) 自检：应返回 4 租户 / 4 用户 / 3 设备 / 9 测点 / 8 采样 / 1 告警 / 1 服务项 / 4 指标模板
 -- select
 --   (select count(*) from tenant) as tenants,
 --   (select count(*) from user) as users,
 --   (select count(*) from device) as devices,
 --   (select count(*) from point) as points,
 --   (select count(*) from point_value) as values_,
---   (select count(*) from alarm) as alarms;
+--   (select count(*) from alarm) as alarms,
+--   (select count(*) from service_item) as services,
+--   (select count(*) from service_metric) as metrics;

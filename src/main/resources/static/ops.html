@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>运维端 - 东环合作社</title>
+    <link rel="stylesheet" href="/css/common.css">
+</head>
+<body>
+<div id="app" v-cloak>
+    <header class="topbar">
+        <div class="brand"><span class="brand-dot"></span>东环合作社 · 运维端</div>
+        <div class="topbar-right">
+            <nav class="nav">
+                <a v-for="item in navItems" :key="item.href" class="nav-link"
+                   :class="{ active: item.href === '/ops.html' }" :href="item.href">{{ item.label }}</a>
+            </nav>
+            <span v-if="user">{{ user.username }}（{{ roleLabel }}）</span>
+            <button class="btn btn-sm" @click="logout">退出登录</button>
+        </div>
+    </header>
+
+    <main class="page">
+        <div class="tabs">
+            <button class="tab" v-for="t in tabs" :key="t.key" :class="{ active: tab === t.key }"
+                    @click="switchTab(t.key)">{{ t.label }}</button>
+        </div>
+
+        <!-- 开通任务 -->
+        <section v-show="tab === 'tasks'">
+            <div class="toolbar">
+                <select v-model="taskStatus" style="width: 160px" @change="loadTasks">
+                    <option value="">全部状态</option>
+                    <option value="PENDING">待开通</option>
+                    <option value="RUNNING">开通中</option>
+                    <option value="DONE">已完成</option>
+                    <option value="CANCELLED">已取消</option>
+                </select>
+                <button class="btn" @click="loadTasks">刷新</button>
+                <span class="hint" style="margin-left: auto">点击任务查看详情并执行开通；开通后无需重启即可采数</span>
+            </div>
+            <div class="card">
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>任务号</th>
+                            <th>申请单号</th>
+                            <th>租户</th>
+                            <th>服务</th>
+                            <th>棚数</th>
+                            <th>状态</th>
+                            <th>创建时间</th>
+                            <th>完成时间</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr v-for="t in tasks" :key="t.id"
+                            :class="{ selected: selectedTask && selectedTask.id === t.id }"
+                            @click="selectTask(t)">
+                            <td class="code">#{{ t.id }}</td>
+                            <td class="code">{{ t.applicationNo }}</td>
+                            <td>{{ t.tenantName }}</td>
+                            <td>{{ t.serviceName }}</td>
+                            <td>{{ t.greenhouseCount }}</td>
+                            <td><span class="badge" :class="taskBadgeClass(t.status)">{{ taskStatusLabel(t.status) }}</span></td>
+                            <td class="muted">{{ fmtTime(t.createdAt) }}</td>
+                            <td class="muted">{{ fmtTime(t.finishedAt) }}</td>
+                        </tr>
+                        <tr v-if="!tasks.length">
+                            <td colspan="8" class="empty">没有符合条件的开通任务</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card" v-if="selectedTask" style="margin-top: 16px">
+                <div class="card-head">
+                    <span class="card-title">任务 #{{ selectedTask.id }} · {{ selectedTask.serviceName }}</span>
+                    <span class="badge" :class="taskBadgeClass(selectedTask.status)">{{ taskStatusLabel(selectedTask.status) }}</span>
+                </div>
+                <div class="card-body">
+                    <div class="detail-grid">
+                        <div class="detail-item"><span class="label">申请单号</span>{{ selectedTask.applicationNo }}</div>
+                        <div class="detail-item"><span class="label">租户</span>{{ selectedTask.tenantName }}</div>
+                        <div class="detail-item"><span class="label">申请棚数</span>{{ selectedTask.greenhouseCount }}</div>
+                        <div class="detail-item"><span class="label">申请时间</span>{{ fmtTime(selectedTask.createdAt) }}</div>
+                        <div class="detail-item"><span class="label">备注</span>{{ selectedTask.remark || '-' }}</div>
+                    </div>
+
+                    <div class="section-title">指标模板</div>
+                    <span class="tag" v-for="m in selectedTask.metrics" :key="m.metricCode">
+                        {{ m.name }}<span v-if="m.unit">（{{ m.unit }}）</span>
+                    </span>
+
+                    <template v-if="selectedTask.status === 'PENDING' && form">
+                        <div class="section-title">大棚登记与测点配置</div>
+                        <div class="hint" style="margin-bottom: 10px">
+                            新设备必须填写连接配置；已有设备可只填设备编码，系统会绑定租户并保留原连接。
+                        </div>
+
+                        <div class="metric-editor" v-for="(gh, index) in form.greenhouses" :key="index">
+                            <div class="metric-head">
+                                <strong>大棚 {{ index + 1 }}</strong>
+                                <span class="hint">测点按指标模板生成，共 {{ gh.points.length }} 个</span>
+                            </div>
+                            <div class="form-grid">
+                                <div class="form-item">
+                                    <label>设备编码</label>
+                                    <input v-model.trim="gh.deviceCode" placeholder="如 gh-03"
+                                           @change="onDeviceCodeChange(gh)">
+                                </div>
+                                <div class="form-item">
+                                    <label>大棚名称</label>
+                                    <input v-model.trim="gh.name" placeholder="如 三号大棚">
+                                </div>
+                                <div class="form-item">
+                                    <label>协议</label>
+                                    <select v-model="gh.protocol" @change="normalizeProtocol(gh)">
+                                        <option value="mqtt">MQTT</option>
+                                        <option value="modbus">Modbus TCP</option>
+                                    </select>
+                                </div>
+                                <div class="form-item">
+                                    <label>连接配置</label>
+                                    <input v-model.trim="gh.connectionConfig"
+                                           :placeholder="gh.protocol === 'modbus' ? '127.0.0.1:5020:1' : 'donghuan/th/03'">
+                                    <span class="hint">{{ gh.protocol === 'modbus' ? '格式：host:port[:unitId]' : 'MQTT 主题' }}</span>
+                                </div>
+                            </div>
+
+                            <div class="table-wrap" style="margin-top: 10px">
+                                <table>
+                                    <thead>
+                                    <tr>
+                                        <th>指标</th>
+                                        <th style="min-width: 170px">地址</th>
+                                        <th v-if="gh.protocol === 'mqtt'" style="min-width: 130px">采样时间路径</th>
+                                        <th v-if="gh.protocol === 'modbus'" style="min-width: 110px">数据类型</th>
+                                        <th style="min-width: 90px">阈值下限</th>
+                                        <th style="min-width: 90px">阈值上限</th>
+                                        <th style="min-width: 90px">量程下限</th>
+                                        <th style="min-width: 90px">量程上限</th>
+                                        <th style="min-width: 80px">周期(s)</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    <tr v-for="p in gh.points" :key="p.metricCode">
+                                        <td>
+                                            {{ p.name }}
+                                            <div class="muted code">{{ p.metricCode }}<span v-if="p.unit"> · {{ p.unit }}</span></div>
+                                        </td>
+                                        <td>
+                                            <input v-model.trim="p.address"
+                                                   :placeholder="gh.protocol === 'modbus' ? 'holding:0:float32' : '$.temperature'">
+                                        </td>
+                                        <td v-if="gh.protocol === 'mqtt'">
+                                            <input v-model.trim="p.timeAddress" placeholder="可选，如 $.timestamp">
+                                        </td>
+                                        <td v-if="gh.protocol === 'modbus'">
+                                            <select v-model="p.dataType">
+                                                <option value="uint16">uint16</option>
+                                                <option value="int16">int16</option>
+                                                <option value="uint32">uint32</option>
+                                                <option value="int32">int32</option>
+                                                <option value="float32">float32</option>
+                                                <option value="bool">bool</option>
+                                            </select>
+                                        </td>
+                                        <td><input type="number" step="any" v-model.number="p.minValue"></td>
+                                        <td><input type="number" step="any" v-model.number="p.maxValue"></td>
+                                        <td><input type="number" step="any" v-model.number="p.rangeMin"></td>
+                                        <td><input type="number" step="any" v-model.number="p.rangeMax"></td>
+                                        <td><input type="number" min="1" v-model.number="p.freqSeconds"></td>
+                                    </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="form-item">
+                            <label>开通备注（可选）</label>
+                            <input v-model.trim="form.remark" placeholder="如 现场安装完成">
+                        </div>
+                        <div class="form-error">{{ formError }}</div>
+                        <div class="modal-actions">
+                            <button class="btn btn-primary" :disabled="submitting" @click="submitProvision">
+                                {{ submitting ? '提交中...' : '执行开通' }}
+                            </button>
+                        </div>
+                    </template>
+
+                    <template v-else>
+                        <div class="section-title">已纳入设备</div>
+                        <div class="table-wrap" v-if="selectedTask.devices && selectedTask.devices.length">
+                            <table>
+                                <thead>
+                                <tr><th>设备编码</th><th>名称</th><th>协议</th><th>测点数</th></tr>
+                                </thead>
+                                <tbody>
+                                <tr v-for="d in selectedTask.devices" :key="d.deviceCode">
+                                    <td class="code">{{ d.deviceCode }}</td>
+                                    <td>{{ d.name }}</td>
+                                    <td>{{ protocolLabel(d.protocol) }}</td>
+                                    <td>{{ d.pointCount }}</td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div v-else class="hint">该任务尚未完成开通</div>
+                    </template>
+                </div>
+            </div>
+        </section>
+
+        <!-- 告警处理 -->
+        <section v-show="tab === 'alarms'">
+            <div class="toolbar">
+                <button class="btn" @click="loadAlarms">刷新</button>
+                <span class="hint" style="margin-left: auto">活动告警每 3 秒刷新；确认操作记录当前账号</span>
+            </div>
+            <div class="split-2">
+                <section class="card">
+                    <div class="card-head">
+                        <span class="card-title">活动告警（{{ activeAlarms.length }}）</span>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                            <tr><th>ID</th><th>测点</th><th>类型</th><th>值 / 阈值</th><th>时间</th><th>操作</th></tr>
+                            </thead>
+                            <tbody>
+                            <tr v-for="a in activeAlarms" :key="a.id">
+                                <td class="code">#{{ a.id }}</td>
+                                <td class="code">#{{ a.pointId }}</td>
+                                <td>{{ a.limitType === 'MAX' ? '上限' : '下限' }}</td>
+                                <td>{{ a.value }} / {{ a.threshold }}</td>
+                                <td class="muted">{{ fmtTime(a.sampleAt) }}</td>
+                                <td>
+                                    <span v-if="a.confirmedAt" class="muted">已确认</span>
+                                    <button v-else class="btn btn-sm" @click="confirmAlarm(a)">确认</button>
+                                </td>
+                            </tr>
+                            <tr v-if="!activeAlarms.length">
+                                <td colspan="6" class="empty">暂无活动告警</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+                <section class="card">
+                    <div class="card-head">
+                        <span class="card-title">告警历史（{{ allAlarms.length }}）</span>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                            <tr><th>ID</th><th>测点</th><th>状态</th><th>确认/恢复</th></tr>
+                            </thead>
+                            <tbody>
+                            <tr v-for="a in allAlarms" :key="'h' + a.id">
+                                <td class="code">#{{ a.id }}</td>
+                                <td class="code">#{{ a.pointId }}</td>
+                                <td>
+                                    <span class="badge" :class="{ 'badge-warn': a.status === 'ACTIVE', 'badge-muted': a.status !== 'ACTIVE' }">
+                                        {{ a.status === 'ACTIVE' ? '活动' : '已恢复' }}
+                                    </span>
+                                </td>
+                                <td class="muted">
+                                    <div v-if="a.confirmedAt">确认 {{ fmtTime(a.confirmedAt) }}</div>
+                                    <div v-if="a.recoveredAt">恢复 {{ fmtTime(a.recoveredAt) }}</div>
+                                    <span v-if="!a.confirmedAt && !a.recoveredAt">-</span>
+                                </td>
+                            </tr>
+                            <tr v-if="!allAlarms.length">
+                                <td colspan="4" class="empty">暂无告警记录</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+        </section>
+
+        <!-- 设备概览 -->
+        <section v-show="tab === 'devices'">
+            <div class="toolbar">
+                <button class="btn" @click="loadDevices">刷新</button>
+                <a class="btn" href="/devices.html">设备管理</a>
+                <a class="btn" href="/monitor.html">实时监测</a>
+                <span class="hint" style="margin-left: auto">可直接修改测点告警阈值，保存后立即生效</span>
+            </div>
+            <div class="device-grid">
+                <section class="card" v-for="d in devices" :key="d.deviceCode">
+                    <div class="card-head">
+                        <span class="card-title">{{ d.name }} <span class="muted code">{{ d.deviceCode }}</span></span>
+                        <span class="badge">{{ protocolLabel(d.protocol) }}</span>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                            <tr>
+                                <th>测点</th>
+                                <th>实时值</th>
+                                <th style="min-width: 80px">下限</th>
+                                <th style="min-width: 80px">上限</th>
+                                <th>操作</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr v-for="p in (d.points || [])" :key="p.pointCode">
+                                <td>
+                                    {{ p.metric || p.pointCode }}
+                                    <div class="muted code">{{ p.pointCode }}<span v-if="p.unit"> · {{ p.unit }}</span></div>
+                                </td>
+                                <td class="point-value" :class="{ bad: snapshotQuality(d, p) === 'BAD' }">
+                                    {{ snapshotText(d, p) }}
+                                </td>
+                                <td>
+                                    <input type="number" step="any" v-model.number="draftOf(d, p).min">
+                                </td>
+                                <td>
+                                    <input type="number" step="any" v-model.number="draftOf(d, p).max">
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm" :disabled="savingKey === d.deviceCode + ':' + p.pointCode"
+                                            @click="saveThreshold(d, p)">
+                                        {{ savingKey === d.deviceCode + ':' + p.pointCode ? '保存中' : '保存' }}
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr v-if="!d.points || !d.points.length">
+                                <td colspan="5" class="empty">该设备暂无测点</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+                <div class="empty" v-if="!devices.length">暂无设备</div>
+            </div>
+        </section>
+    </main>
+</div>
+
+<script src="/js/vue.global.prod.js"></script>
+<script src="/js/api.js"></script>
+<script>
+    const { createApp } = Vue;
+
+    function numOrNull(value) {
+        if (value === '' || value === null || value === undefined) return null;
+        const number = Number(value);
+        return Number.isNaN(number) ? null : number;
+    }
+
+    createApp({
+        data() {
+            return {
+                user: null,
+                tab: 'tasks',
+                tabs: [
+                    { key: 'tasks', label: '开通任务' },
+                    { key: 'alarms', label: '告警处理' },
+                    { key: 'devices', label: '设备概览' }
+                ],
+                taskStatus: 'PENDING',
+                tasks: [],
+                selectedTask: null,
+                form: null,
+                formError: '',
+                submitting: false,
+                activeAlarms: [],
+                allAlarms: [],
+                devices: [],
+                snapshots: {},
+                thresholdDraft: {},
+                savingKey: '',
+                snapshotTimer: null,
+                snapshotSource: null,
+                pollTimer: null
+            };
+        },
+        computed: {
+            roleLabel() {
+                return this.user ? roleText(this.user.role) : '';
+            },
+            navItems() {
+                if (!this.user) return [];
+                return [
+                    { label: '运维端', href: '/ops.html' },
+                    { label: '设备管理', href: '/devices.html' },
+                    { label: '实时监测', href: '/monitor.html' }
+                ];
+            }
+        },
+        mounted() {
+            this.init();
+            this.snapshotSource = openSnapshotStream(batch => this.applySnapshots(batch));
+            this.snapshotTimer = setInterval(this.loadSnapshots, 3000);
+            this.pollTimer = setInterval(() => {
+                if (this.tab === 'alarms') this.loadAlarms();
+                else if (this.tab === 'tasks') this.loadTasks();
+            }, 3000);
+        },
+        beforeUnmount() {
+            clearInterval(this.snapshotTimer);
+            clearInterval(this.pollTimer);
+            if (this.snapshotSource) this.snapshotSource.close();
+        },
+        methods: {
+            async init() {
+                try {
+                    this.user = await API.get('/api/auth/me');
+                    await Promise.all([this.loadTasks(), this.loadDevices(), this.loadAlarms(), this.loadSnapshots()]);
+                } catch (e) {
+                    // 401 已由 API 封装跳转
+                }
+            },
+            switchTab(key) {
+                this.tab = key;
+                if (key === 'tasks') this.loadTasks();
+                else if (key === 'alarms') this.loadAlarms();
+                else if (key === 'devices') this.loadDevices();
+            },
+            async loadTasks() {
+                try {
+                    const url = '/api/provision-tasks' +
+                        (this.taskStatus ? '?status=' + encodeURIComponent(this.taskStatus) : '');
+                    this.tasks = await API.get(url) || [];
+                } catch (e) {
+                    showToast(e.message, 'error');
+                }
+            },
+            async selectTask(task) {
+                try {
+                    const detail = await API.get('/api/provision-tasks/' + task.id);
+                    this.selectedTask = detail;
+                    this.buildForm(detail);
+                } catch (e) {
+                    showToast(e.message, 'error');
+                }
+            },
+            buildForm(task) {
+                this.formError = '';
+                if (!task || task.status !== 'PENDING') {
+                    this.form = null;
+                    return;
+                }
+                this.form = {
+                    remark: '',
+                    greenhouses: Array.from({ length: task.greenhouseCount }, (_, index) => ({
+                        deviceCode: '',
+                        name: '大棚 ' + (index + 1),
+                        protocol: 'mqtt',
+                        connectionConfig: '',
+                        points: (task.metrics || []).map(metric => ({
+                            metricCode: metric.metricCode,
+                            name: metric.name,
+                            unit: metric.unit,
+                            address: '',
+                            timeAddress: '',
+                            dataType: 'float32',
+                            minValue: metric.defaultMin == null ? '' : metric.defaultMin,
+                            maxValue: metric.defaultMax == null ? '' : metric.defaultMax,
+                            rangeMin: metric.rangeMin == null ? '' : metric.rangeMin,
+                            rangeMax: metric.rangeMax == null ? '' : metric.rangeMax,
+                            freqSeconds: metric.freqSeconds == null ? '' : metric.freqSeconds
+                        }))
+                    }))
+                };
+            },
+            onDeviceCodeChange(greenhouse) {
+                const code = (greenhouse.deviceCode || '').trim();
+                const existing = this.devices.find(d => d.deviceCode === code);
+                if (existing) {
+                    greenhouse.protocol = (existing.protocol || 'MQTT').toLowerCase();
+                    greenhouse.name = existing.name || greenhouse.name;
+                    greenhouse.connectionConfig = existing.connection && existing.connection.config
+                        ? existing.connection.config : greenhouse.connectionConfig;
+                }
+            },
+            normalizeProtocol(greenhouse) {
+                if (greenhouse.protocol === 'modbus') {
+                    greenhouse.points.forEach(p => {
+                        if (!p.dataType || p.dataType === 'double') p.dataType = 'float32';
+                    });
+                }
+            },
+            validateForm() {
+                if (!this.form || !this.form.greenhouses.length) return '开通大棚不能为空';
+                const codes = new Set();
+                for (const gh of this.form.greenhouses) {
+                    const code = (gh.deviceCode || '').trim();
+                    if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(code)) {
+                        return '设备编码不合法（字母、数字、下划线、中划线）：' + (code || '空');
+                    }
+                    if (codes.has(code)) return '设备编码重复：' + code;
+                    codes.add(code);
+                    if (!gh.name) return '大棚名称不能为空：' + code;
+                    const existing = this.devices.some(d => d.deviceCode === code);
+                    if (!existing && !(gh.connectionConfig || '').trim()) {
+                        return '新设备必须填写连接配置：' + code;
+                    }
+                    for (const p of gh.points) {
+                        const address = (p.address || '').trim();
+                        if (!address) return '测点地址不能为空：' + code + ' / ' + p.metricCode;
+                        if (gh.protocol === 'mqtt' && !address.startsWith('$')) {
+                            return 'MQTT 地址必须以 $ 开头：' + code + ' / ' + p.metricCode;
+                        }
+                        if (gh.protocol === 'modbus' && address.split(':').length < 2) {
+                            return 'Modbus 地址格式应为 寄存器类型:地址:数据类型：' + code + ' / ' + p.metricCode;
+                        }
+                        if (numOrNull(p.minValue) != null && numOrNull(p.maxValue) != null
+                            && numOrNull(p.minValue) > numOrNull(p.maxValue)) {
+                            return '阈值下限不能大于上限：' + code + ' / ' + p.metricCode;
+                        }
+                        if (numOrNull(p.rangeMin) != null && numOrNull(p.rangeMax) != null
+                            && numOrNull(p.rangeMin) > numOrNull(p.rangeMax)) {
+                            return '量程下限不能大于上限：' + code + ' / ' + p.metricCode;
+                        }
+                        const freq = numOrNull(p.freqSeconds);
+                        if (freq != null && freq <= 0) return '采集周期必须大于 0：' + code + ' / ' + p.metricCode;
+                    }
+                }
+                return '';
+            },
+            async submitProvision() {
+                this.formError = this.validateForm();
+                if (this.formError) return;
+
+                const payload = {
+                    remark: this.form.remark || null,
+                    greenhouses: this.form.greenhouses.map(gh => ({
+                        deviceCode: gh.deviceCode.trim(),
+                        name: gh.name.trim(),
+                        protocol: gh.protocol,
+                        connectionConfig: (gh.connectionConfig || '').trim() || null,
+                        points: gh.points.map(p => ({
+                            metricCode: p.metricCode,
+                            address: p.address.trim(),
+                            timeAddress: gh.protocol === 'mqtt' ? (p.timeAddress || null) : null,
+                            dataType: gh.protocol === 'modbus' ? (p.dataType || 'float32') : 'double',
+                            minValue: numOrNull(p.minValue),
+                            maxValue: numOrNull(p.maxValue),
+                            rangeMin: numOrNull(p.rangeMin),
+                            rangeMax: numOrNull(p.rangeMax),
+                            freqSeconds: numOrNull(p.freqSeconds)
+                        }))
+                    }))
+                };
+
+                this.submitting = true;
+                try {
+                    const result = await API.post('/api/provision-tasks/' + this.selectedTask.id + '/provision', payload);
+                    showToast('开通完成，设备已进入采集', 'success');
+                    this.selectedTask = result;
+                    this.form = null;
+                    await Promise.all([this.loadTasks(), this.loadDevices()]);
+                } catch (e) {
+                    this.formError = e.message;
+                } finally {
+                    this.submitting = false;
+                }
+            },
+            async loadAlarms() {
+                try {
+                    const [active, all] = await Promise.all([
+                        API.get('/api/alarms/active'),
+                        API.get('/api/alarms')
+                    ]);
+                    this.activeAlarms = active || [];
+                    this.allAlarms = all || [];
+                } catch (e) {
+                    // 轮询失败不打断页面
+                }
+            },
+            async confirmAlarm(alarm) {
+                try {
+                    await API.post('/api/alarms/' + alarm.id + '/confirm', {});
+                    showToast('告警已确认', 'success');
+                    await this.loadAlarms();
+                } catch (e) {
+                    showToast(e.message, 'error');
+                }
+            },
+            async loadDevices() {
+                try {
+                    this.devices = await API.get('/api/devices') || [];
+                    const draft = {};
+                    for (const d of this.devices) {
+                        for (const p of (d.points || [])) {
+                            draft[d.deviceCode + ':' + p.pointCode] = {
+                                min: p.min == null ? '' : p.min,
+                                max: p.max == null ? '' : p.max
+                            };
+                        }
+                    }
+                    this.thresholdDraft = draft;
+                } catch (e) {
+                    showToast(e.message, 'error');
+                }
+            },
+            draftOf(device, point) {
+                const key = device.deviceCode + ':' + point.pointCode;
+                if (!this.thresholdDraft[key]) {
+                    this.thresholdDraft[key] = {
+                        min: point.min == null ? '' : point.min,
+                        max: point.max == null ? '' : point.max
+                    };
+                }
+                return this.thresholdDraft[key];
+            },
+            async saveThreshold(device, point) {
+                const key = device.deviceCode + ':' + point.pointCode;
+                const draft = this.draftOf(device, point);
+                const min = numOrNull(draft.min);
+                const max = numOrNull(draft.max);
+                if (min != null && max != null && min > max) {
+                    showToast('阈值下限不能大于上限', 'error');
+                    return;
+                }
+                this.savingKey = key;
+                try {
+                    await API.put('/api/points/' + encodeURIComponent(device.deviceCode) +
+                        '/' + encodeURIComponent(point.pointCode) + '/threshold', { min, max });
+                    showToast('阈值已更新', 'success');
+                    await this.loadDevices();
+                } catch (e) {
+                    showToast(e.message, 'error');
+                } finally {
+                    this.savingKey = '';
+                }
+            },
+            async loadSnapshots() {
+                try {
+                    this.snapshots = await API.get('/api/snapshots') || {};
+                } catch (e) {
+                    // 轮询失败不打断页面
+                }
+            },
+            applySnapshots(batch) {
+                if (batch && typeof batch === 'object') {
+                    Object.assign(this.snapshots, batch);
+                }
+            },
+            snapshotOf(device, point) {
+                return this.snapshots[device.deviceCode + ':' + point.pointCode] || null;
+            },
+            snapshotText(device, point) {
+                const snapshot = this.snapshotOf(device, point);
+                if (!snapshot) return '-';
+                const unit = snapshot.unit || point.unit;
+                return formatByUnit(snapshot.value, unit) + (unit ? ' ' + unit : '');
+            },
+            snapshotQuality(device, point) {
+                const snapshot = this.snapshotOf(device, point);
+                return snapshot ? snapshot.quality : null;
+            },
+            taskStatusLabel(status) {
+                return { PENDING: '待开通', RUNNING: '开通中', DONE: '已完成', CANCELLED: '已取消' }[status] || status;
+            },
+            taskBadgeClass(status) {
+                return { PENDING: 'badge-warn', RUNNING: 'badge-warn', CANCELLED: 'badge-muted' }[status] || '';
+            },
+            protocolLabel(protocol) {
+                return String(protocol || '').toUpperCase() === 'MODBUS' ? 'Modbus TCP' : 'MQTT';
+            },
+            fmtTime(value) {
+                if (!value) return '-';
+                const d = new Date(value);
+                const pad = n => String(n).padStart(2, '0');
+                return pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' +
+                    pad(d.getHours()) + ':' + pad(d.getMinutes());
+            },
+            async logout() {
+                try {
+                    await API.post('/api/auth/logout', {});
+                } catch (e) {
+                    // 忽略，统一回登录页
+                }
+                location.href = '/login.html';
+            }
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>

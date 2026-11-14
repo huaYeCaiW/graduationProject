@@ -40,6 +40,18 @@ public class MqttProtocolAdapter implements ProtocolAdapter {
     public void connect(DeviceConfig device) {
         // deviceCode 做key
         String deviceCode = device.getDeviceCode();
+
+        // 标记与 MQTT 不兼容的测点：保留在内存，供页面查看和编辑修复
+        resolvePoints(device);
+
+        // 新增设备可能还没填连接串，等 update 后再接入
+        if (device.getConnection() == null
+                || device.getConnection().getConfig() == null
+                || device.getConnection().getConfig().isBlank()) {
+            log.warn("MQTT 连接配置为空，跳过设备：deviceCode={}", deviceCode);
+            return;
+        }
+
         MqttClient client = null;
 
         try {
@@ -61,7 +73,7 @@ public class MqttProtocolAdapter implements ProtocolAdapter {
 
                 @Override
                 public void connectComplete(boolean reconnect, String serverURI) {
-                    String topic = device.getConnection().getTopic();
+                    String topic = device.getConnection().getConfig();
                     try {
                         bound.subscribe(topic, 1);
                         if (reconnect) {
@@ -103,7 +115,8 @@ public class MqttProtocolAdapter implements ProtocolAdapter {
             // 连接选项
             MqttConnectOptions options = new MqttConnectOptions();
             options.setAutomaticReconnect(true);
-            options.setCleanSession(false);
+            // 主题热切换时不恢复旧会话，避免旧订阅残留；重连后由 connectComplete 重新订阅
+            options.setCleanSession(true);
             options.setConnectionTimeout(10);
             options.setKeepAliveInterval(60);
 
@@ -111,7 +124,7 @@ public class MqttProtocolAdapter implements ProtocolAdapter {
             bound.connect(options);
 
             clients.put(deviceCode, client);
-            log.info("√ MQTT连接成功：broker={}，topic={}，deviceCode={}", broker, device.getConnection().getTopic(), device.getDeviceCode());
+            log.info("√ MQTT连接成功：broker={}，topic={}，deviceCode={}", broker, device.getConnection().getConfig(), device.getDeviceCode());
 
         } catch (MqttException e) {
             log.error("× MQTT连接失败：{}", e.getMessage());
@@ -119,6 +132,19 @@ public class MqttProtocolAdapter implements ProtocolAdapter {
                 try {
                     client.close();
                 } catch (MqttException ignored) {}
+            }
+        }
+    }
+
+    // 只有以 $ 开头的 JSON 路径才参与解析；Modbus 地址等残留标记为无效
+    private void resolvePoints(DeviceConfig device) {
+        for (DeviceConfig.Point point : device.getPoints()) {
+            String path = point.getJsonPath();
+            boolean valid = path != null && path.trim().startsWith("$");
+            point.setInvalid(!valid);
+            if (!valid) {
+                log.warn("MQTT 测点配置无效，已跳过：deviceCode={}，pointCode={}，address={}",
+                        device.getDeviceCode(), point.getPointCode(), path);
             }
         }
     }

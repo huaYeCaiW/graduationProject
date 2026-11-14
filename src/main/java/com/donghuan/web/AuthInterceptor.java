@@ -71,6 +71,21 @@ public class AuthInterceptor implements HandlerInterceptor {
         if (path.startsWith("/api/alarms/") && path.endsWith("/confirm")) {
             return AuthConstants.PERM_ALARM_CONFIRM;
         }
+        if (("POST".equals(method) || "PUT".equals(method) || "DELETE".equals(method))
+                && path.startsWith("/api/service-items")) {
+            return AuthConstants.PERM_SERVICE_WRITE;
+        }
+        if ("POST".equals(method) && path.equals("/api/service-applications")) {
+            return AuthConstants.PERM_APPLICATION_SUBMIT;
+        }
+        if ("POST".equals(method) && path.startsWith("/api/service-applications/")
+                && (path.endsWith("/approve") || path.endsWith("/reject"))) {
+            return AuthConstants.PERM_APPLICATION_REVIEW;
+        }
+        if ("POST".equals(method) && path.startsWith("/api/provision-tasks/")
+                && path.endsWith("/provision")) {
+            return AuthConstants.PERM_PROVISION_EXECUTE;
+        }
         return null;
     }
 
@@ -81,6 +96,10 @@ public class AuthInterceptor implements HandlerInterceptor {
                  AuthConstants.PERM_POINT_WRITE -> role == Role.ADMIN;
             case AuthConstants.PERM_THRESHOLD_WRITE -> true;
             case AuthConstants.PERM_ALARM_CONFIRM -> role == Role.OPS || role == Role.ADMIN;
+            case AuthConstants.PERM_SERVICE_WRITE -> role == Role.ADMIN;
+            case AuthConstants.PERM_APPLICATION_SUBMIT -> role == Role.FARMER;
+            case AuthConstants.PERM_APPLICATION_REVIEW -> role == Role.ADMIN;
+            case AuthConstants.PERM_PROVISION_EXECUTE -> role == Role.OPS || role == Role.ADMIN;
             default -> false;
         };
     }

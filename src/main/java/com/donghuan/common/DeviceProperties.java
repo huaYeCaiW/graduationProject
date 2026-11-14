@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -16,45 +17,72 @@ import java.util.*;
 public class DeviceProperties {
 
     private final JdbcTemplate jdbcTemplate;
-    private volatile Map<String, DeviceConfig> devicesByCode = Map.of();
+    // 设备配置直接放内存，增删不影响正在遍历的线程
+    private final List<DeviceConfig> devices = new CopyOnWriteArrayList<>();
 
-    // 载入配置
+    private static final String DEVICE_SQL = "select d.device_code, " +
+            "d.name as device_name, " +
+            "d.protocol, " +
+            "d.connection_config, " +
+            "p.point_code, " +
+            "p.name as point_name, " +
+            "p.address, " +
+            "p.time_address, " +
+            "p.data_type, " +
+            "p.unit, " +
+            "p.freq_seconds, " +
+            "p.min_value, " +
+            "p.max_value, " +
+            "p.range_min, " +
+            "p.range_max, " +
+            "d.tenant_id " +
+            "from device d " +
+            "left join point p " +
+            "on p.device_id = d.id " +
+            "and p.enabled = 1 " +
+            "where d.enabled = 1 ";
+
+    // 载入配置：只做数据库到对象的映射，不解析协议字段
     @PostConstruct
     public void load() {
-        Map<String, DeviceConfig> next = new LinkedHashMap<>();
-        String sql = "select d.device_code, " +
-                        "d.name as device_name, " +
-                        "d.protocol, " +
-                        "d.connection_config, " +
-                        "p.point_code, " +
-                        "p.name as point_name, " +
-                        "p.address, " +
-                        "p.time_address, " +
-                        "p.unit, " +
-                        "p.freq_seconds, " +
-                        "p.min_value, " +
-                        "p.max_value, " +
-                        "d.tenant_id " +
-                "from device d " +
-                "left join point p " +
-                        "on p.device_id = d.id " +
-                        "and p.enabled = 1 " +
-                "where d.enabled = 1 " +
-                "order by d.device_code, p.point_code";
+        Map<String, DeviceConfig> next = queryDevices("");
 
-        jdbcTemplate.query(sql, rs -> {
+        // 启动装载阶段没有并发读，直接重置同一个列表
+        devices.clear();
+        devices.addAll(next.values());
+
+        if (next.isEmpty()) {
+            log.warn("设备配置为空：device 表无启用设备或 point 表无启用测点，数据将不会接入");
+        } else {
+            log.info("载入设备配置{}台", next.size());
+        }
+    }
+
+    // 恢复逻辑删除的设备：只重载这一台，避免重建其他设备对象影响正在运行的 poller
+    public Optional<DeviceConfig> loadDevice(String deviceCode) {
+        return queryDevices(" and d.device_code = ?", deviceCode).values().stream().findFirst();
+    }
+
+    // 按条件装载设备与测点，condition 拼在 where d.enabled = 1 之后
+    private Map<String, DeviceConfig> queryDevices(String condition, Object... args) {
+        Map<String, DeviceConfig> next = new LinkedHashMap<>();
+
+        jdbcTemplate.query(DEVICE_SQL + condition + " order by d.device_code, p.point_code", rs -> {
             String deviceCode = rs.getString("device_code");
             DeviceConfig device = next.get(deviceCode);
+
             if (device == null) {
                 device = new DeviceConfig();
                 device.setDeviceCode(deviceCode);
                 device.setName(rs.getString("device_name"));
-                device.setProtocol(Protocol.from(rs.getString("protocol")));
+                Protocol protocol = Protocol.from(rs.getString("protocol"));
+                device.setProtocol(protocol);
                 long tenantId = rs.getLong("tenant_id");
                 device.setTenantId(rs.wasNull() ? null : tenantId);
 
+                // 连接串原样装载，解析交给各协议适配器
                 DeviceConfig.Connection connection = new DeviceConfig.Connection();
-                connection.setTopic(rs.getString("connection_config"));
+                connection.setConfig(rs.getString("connection_config"));
                 device.setConnection(connection);
 
                 next.put(deviceCode, device);
@@ -69,8 +97,6 @@ public class DeviceProperties {
             point.setPointCode(pointCode);
             point.setMetric(rs.getString("point_name"));
             point.setUnit(rs.getString("unit"));
-            point.setJsonPath(rs.getString("address"));
-            point.setTimeJsonPath(rs.getString("time_address"));
             int freq = rs.getInt("freq_seconds");
             point.setFreq(rs.wasNull() ? null : freq);
 
@@ -79,24 +105,44 @@ public class DeviceProperties {
             point.setMin(min == null ? null : min.doubleValue());
             point.setMax(max == null ? null : max.doubleValue());
 
-            device.getPoints().add(point);
-        });
+            BigDecimal rangeMin = rs.getBigDecimal("range_min");
+            BigDecimal rangeMax = rs.getBigDecimal("range_max");
+            point.setRangeMin(rangeMin == null ? null : rangeMin.doubleValue());
+            point.setRangeMax(rangeMax == null ? null : rangeMax.doubleValue());
 
-        devicesByCode = Collections.unmodifiableMap(next);
-        if (next.isEmpty()) {
-            log.warn("设备配置为空：device 表无启用设备或 point 表无启用测点，数据将不会接入");
-        } else {
-            log.info("载入设备配置{}台", next.size());
-        }
+            if (device.getProtocol() == Protocol.MODBUS) {
+                point.setAddressText(rs.getString("address"));
+                point.setDataTypeCode(rs.getString("data_type"));
+            } else {
+                point.setJsonPath(rs.getString("address"));
+                point.setTimeJsonPath(rs.getString("time_address"));
+            }
+
+            device.getPoints().add(point);
+        }, args);
+
+        return next;
     }
 
     // 查设备
-    public Optional<DeviceConfig> findDevice (String deviceCode) {
-        return Optional.ofNullable(devicesByCode.get(deviceCode));
+    public Optional<DeviceConfig> findDevice(String deviceCode) {
+        return devices.stream()
+                .filter(d -> d.getDeviceCode().equals(deviceCode))
+                .findFirst();
     }
 
     // 获取所有设备
     public Collection<DeviceConfig> getDevices() {
-        return devicesByCode.values();
+        return Collections.unmodifiableList(devices);
+    }
+
+    // 新增设备：对象是新建的，直接加入内存列表
+    public void addDevice(DeviceConfig device) {
+        devices.add(device);
+    }
+
+    // 删除设备：从内存列表移除，列表是 CopyOnWriteArrayList，遍历中的线程不受影响
+    public void removeDevice(String deviceCode) {
+        devices.removeIf(d -> d.getDeviceCode().equals(deviceCode));
     }
 }

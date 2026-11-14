@@ -1,5 +1,6 @@
 package com.donghuan.stream;
 
+import com.donghuan.common.DeviceProperties;
 import com.donghuan.common.PointKeys;
 import com.donghuan.model.PointValue;
 import com.donghuan.model.RawMessage;
@@ -25,15 +26,17 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 public class MessageStream {
 
+    private static final int DEFAULT_SAMPLE_SECONDS = 3;
+
     private final PointKeys keys;
     private final MessageParser parser;
     private final PointStore pointStore;
     private final PointSnapshot snapshots;
+    private final SnapshotBroadcaster snapshotBroadcaster;
     private final AlarmService alarmService;
     private final DataCleaner cleaner;
+    private final DeviceProperties deviceProperties;
     private final Map<String, Instant> saved = new ConcurrentHashMap<>();
-    // 采样周期
-    private final Duration sampleInterval = Duration.ofSeconds(3);
 
     // 流字段
     private Sinks.Many<RawMessage> rawSink;
@@ -59,6 +62,7 @@ public class MessageStream {
         valuesFlux.subscribe(pv -> {
             try {
                 snapshots.snapshot(pv);
+                snapshotBroadcaster.publish(pv);
             } catch (Exception e) {
                 log.error("快照失败：{}", pv, e);
             }
@@ -73,10 +77,11 @@ public class MessageStream {
             }
         },err -> log.error("告警流异常终止", err));
 
-        //采样存储
+        //采样存储：按测点 freq_seconds 节流，未配置默认 3 秒
         valuesFlux.subscribe(pv ->{
             String key = keys.key(pv.getDeviceCode(), pv.getPointCode());
             Instant last = saved.get(key);
+            Duration interval = Duration.ofSeconds(sampleSeconds(pv));
             // 内存空，直接落库，并存内存
             if (last == null) {
                 try {
@@ -85,15 +90,8 @@ public class MessageStream {
                 } catch (Exception e) {
                     log.error("存储失败:{}", pv, e);
                 }
-                // 内存非空，判定间隔时间
-                // 间隔大于等于 sampleInterval 落库，存内存
-            } else if (Duration.between(
-                    last,
-                    Instant.now())
-                    // compareTo 如果指定的数与参数相等返回 0
-                    // 如果指定的数小于参数返回 -1
-                    // 如果指定的数大于参数返回 1
-                    .compareTo(sampleInterval) >= 0) {
+                // 内存非空，间隔达到测点采样周期才落库
+            } else if (Duration.between(last, Instant.now()).compareTo(interval) >= 0) {
                 try {
                     pointStore.save(pv);
                     saved.put(key, Instant.now());
@@ -102,6 +100,15 @@ public class MessageStream {
                 }
             }
         },err -> log.error("存储流异常终止", err));
+    }
+
+    // 取测点配置的采样周期，未配置默认 3 秒
+    private int sampleSeconds(PointValue pv) {
+        Integer freq = deviceProperties.findDevice(pv.getDeviceCode())
+                .flatMap(device -> device.findPoint(pv.getPointCode()))
+                .map(point -> point.getFreq())
+                .orElse(null);
+        return freq == null || freq <= 0 ? DEFAULT_SAMPLE_SECONDS : freq;
     }
 
     //对外入口，报文推入口

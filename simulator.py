@@ -29,7 +29,7 @@ try:
         client.publish(TOPIC, json.dumps(payload), qos=0)
         print(f"📤 [{DEVICE_CODE}] {payload}")
         num += 1
-        time.sleep(1)
+        time.sleep(0.5)
 except KeyboardInterrupt:
     print("\n🛑 停了")
     print(f"共{num}条")

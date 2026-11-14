@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>种植户端 - 东环合作社</title>
+    <link rel="stylesheet" href="/css/common.css">
+</head>
+<body>
+<div id="app" v-cloak>
+    <header class="topbar">
+        <div class="brand"><span class="brand-dot"></span>东环合作社 · 种植户端</div>
+        <div class="topbar-right">
+            <nav class="nav">
+                <a v-for="item in navItems" :key="item.href" class="nav-link"
+                   :class="{ active: item.href === '/farmer.html' }" :href="item.href">{{ item.label }}</a>
+            </nav>
+            <span v-if="user">{{ user.username }}（{{ roleLabel }}）</span>
+            <button class="btn btn-sm" @click="logout">退出登录</button>
+        </div>
+    </header>
+
+    <main class="page">
+        <div class="tabs">
+            <button class="tab" v-for="t in tabs" :key="t.key" :class="{ active: tab === t.key }"
+                    @click="switchTab(t.key)">{{ t.label }}</button>
+        </div>
+
+        <!-- 服务申请 -->
+        <section v-show="tab === 'catalog'">
+            <div class="toolbar">
+                <button class="btn" :disabled="loading" @click="loadServices">{{ loading ? '刷新中...' : '刷新' }}</button>
+                <span class="hint" style="margin-left: auto">提交后由合作社管理员审批，通过后运维上门开通</span>
+            </div>
+            <div class="service-grid">
+                <section class="card" v-for="s in services" :key="s.code">
+                    <div class="card-head">
+                        <span class="card-title">{{ s.name }}</span>
+                        <span class="badge">{{ s.maxGreenhouses }} 棚以内</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="muted" style="margin-bottom: 10px">{{ s.description || '暂无说明' }}</div>
+                        <div class="detail-grid" style="margin-bottom: 10px">
+                            <div class="detail-item"><span class="label">大棚数上限</span>{{ s.maxGreenhouses }}</div>
+                            <div class="detail-item"><span class="label">单棚测点上限</span>{{ s.maxPointsPerGreenhouse }}</div>
+                        </div>
+                        <span class="tag" v-for="m in s.metrics" :key="m.metricCode">
+                            {{ m.name }}<span v-if="m.unit">（{{ m.unit }}）</span>
+                            <span v-if="m.defaultMin != null && m.defaultMax != null" class="muted">
+                                {{ m.defaultMin }}~{{ m.defaultMax }}
+                            </span>
+                        </span>
+                        <div class="modal-actions">
+                            <button class="btn btn-primary" @click="openApply(s)">申请服务</button>
+                        </div>
+                    </div>
+                </section>
+                <div class="empty" v-if="!services.length">暂无可申请的服务</div>
+            </div>
+        </section>
+
+        <!-- 我的申请 -->
+        <section v-show="tab === 'mine'">
+            <div class="toolbar">
+                <button class="btn" @click="loadMine">刷新</button>
+                <span class="hint" style="margin-left: auto">进度每 3 秒自动刷新</span>
+            </div>
+            <div v-if="applications.length">
+                <section class="card" v-for="a in applications" :key="a.id" style="margin-bottom: 12px">
+                    <div class="card-head">
+                        <span class="card-title">
+                            {{ a.applicationNo }}
+                            <span class="muted"> · {{ a.serviceName }}</span>
+                        </span>
+                        <span class="badge" :class="appBadgeClass(a.status)">{{ appStatusLabel(a.status) }}</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="detail-grid">
+                            <div class="detail-item"><span class="label">申请棚数</span>{{ a.greenhouseCount }}</div>
+                            <div class="detail-item"><span class="label">联系人</span>{{ a.contact }}</div>
+                            <div class="detail-item"><span class="label">联系电话</span>{{ a.phone || '-' }}</div>
+                            <div class="detail-item"><span class="label">申请时间</span>{{ fmtTime(a.createdAt) }}</div>
+                            <div class="detail-item"><span class="label">审批时间</span>{{ fmtTime(a.reviewedAt) }}</div>
+                            <div class="detail-item"><span class="label">开通单号</span>{{ a.provisionTaskId ? '#' + a.provisionTaskId : '-' }}</div>
+                        </div>
+                        <div class="steps">
+                            <div class="step" v-for="(label, index) in stepLabels" :key="index"
+                                 :class="stepClass(a, index)">{{ label }}</div>
+                        </div>
+                        <div v-if="a.status === 'REJECTED'" class="form-error">驳回原因：{{ a.rejectReason }}</div>
+                        <div v-else-if="a.status === 'PENDING'" class="hint" style="margin-top: 8px">等待管理员审批</div>
+                        <div v-else-if="a.status === 'APPROVED'" class="hint" style="margin-top: 8px">审批已通过，等待运维开通</div>
+                        <div v-else class="hint" style="margin-top: 8px">服务已开通，可到「我的大棚」查看数据</div>
+                    </div>
+                </section>
+            </div>
+            <div class="card" v-else>
+                <div class="empty">
+                    暂无申请
+                    <a class="link" style="margin-left: 6px" @click="switchTab('catalog')">去服务申请</a>
+                </div>
+            </div>
+        </section>
+
+        <!-- 我的大棚 -->
+        <section v-show="tab === 'devices'">
+            <div class="toolbar">
+                <button class="btn" @click="loadDevices">刷新</button>
+                <span class="hint" style="margin-left: auto">实时值由服务端推送，500ms 更新；断线自动重连</span>
+            </div>
+            <div class="device-grid">
+                <section class="card" v-for="d in devices" :key="d.deviceCode">
+                    <div class="card-head">
+                        <span class="card-title">{{ d.name }} <span class="muted code">{{ d.deviceCode }}</span></span>
+                        <span class="badge">{{ protocolLabel(d.protocol) }}</span>
+                    </div>
+                    <div>
+                        <div class="point-row" v-for="p in (d.points || [])" :key="p.pointCode">
+                            <div>
+                                <div class="point-name">{{ p.metric || p.pointCode }}</div>
+                                <div class="point-code">{{ p.pointCode }}<span v-if="p.invalid"> · 无效测点</span></div>
+                            </div>
+                            <div class="point-value" :class="{ bad: isBad(d, p) }">{{ valueText(d, p) }}</div>
+                        </div>
+                        <div class="empty" v-if="!d.points || !d.points.length">暂无测点</div>
+                    </div>
+                </section>
+                <div class="empty" v-if="!devices.length">
+                    暂无大棚，请先提交服务申请
+                    <a class="link" style="margin-left: 6px" @click="switchTab('catalog')">去申请</a>
+                </div>
+            </div>
+
+            <section class="card" style="margin-top: 16px">
+                <div class="card-head">
+                    <span class="card-title">告警提醒（{{ activeAlarms.length }}）</span>
+                    <button class="btn btn-sm" @click="loadAlarms">刷新</button>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                        <tr><th>测点</th><th>类型</th><th>值 / 阈值</th><th>时间</th><th>状态</th></tr>
+                        </thead>
+                        <tbody>
+                        <tr v-for="a in activeAlarms" :key="a.id">
+                            <td class="code">#{{ a.pointId }}</td>
+                            <td>{{ a.limitType === 'MAX' ? '上限' : '下限' }}</td>
+                            <td>{{ a.value }} / {{ a.threshold }}</td>
+                            <td class="muted">{{ fmtTime(a.sampleAt) }}</td>
+                            <td><span class="badge badge-warn">活动</span></td>
+                        </tr>
+                        <tr v-if="!activeAlarms.length">
+                            <td colspan="5" class="empty">暂无活动告警</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </section>
+    </main>
+
+    <div class="modal-mask" v-if="applyModal.open" @click.self="applyModal.open = false">
+        <div class="modal">
+            <h3>申请服务</h3>
+            <div class="form-grid">
+                <div class="form-item full">
+                    <label>服务</label>
+                    <input :value="applyForm.serviceName" disabled>
+                </div>
+                <div class="form-item">
+                    <label>大棚数量（1~{{ applyForm.maxGreenhouses }}）</label>
+                    <input type="number" min="1" :max="applyForm.maxGreenhouses" v-model.number="applyForm.greenhouseCount">
+                </div>
+                <div class="form-item">
+                    <label>联系人</label>
+                    <input v-model.trim="applyForm.contact" placeholder="联系人姓名">
+                </div>
+                <div class="form-item full">
+                    <label>联系电话（可选）</label>
+                    <input v-model.trim="applyForm.phone" placeholder="便于运维联系">
+                </div>
+            </div>
+            <div class="form-error">{{ applyError }}</div>
+            <div class="modal-actions">
+                <button class="btn" @click="applyModal.open = false">取消</button>
+                <button class="btn btn-primary" :disabled="submitting" @click="submitApply">
+                    {{ submitting ? '提交中...' : '提交申请' }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="/js/vue.global.prod.js"></script>
+<script src="/js/api.js"></script>
+<script>
+    const { createApp } = Vue;
+
+    createApp({
+        data() {
+            return {
+                user: null,
+                tab: 'catalog',
+                tabs: [
+                    { key: 'catalog', label: '服务申请' },
+                    { key: 'mine', label: '我的申请' },
+                    { key: 'devices', label: '我的大棚' }
+                ],
+                stepLabels: ['提交申请', '审批', '开通', '完成'],
+                loading: false,
+                submitting: false,
+                services: [],
+                applications: [],
+                devices: [],
+                snapshots: {},
+                activeAlarms: [],
+                applyModal: { open: false },
+                applyForm: { serviceCode: '', serviceName: '', maxGreenhouses: 1, greenhouseCount: 1, contact: '', phone: '' },
+                applyError: '',
+                snapshotSource: null,
+                snapshotTimer: null,
+                pollTimer: null
+            };
+        },
+        computed: {
+            roleLabel() {
+                return this.user ? roleText(this.user.role) : '';
+            },
+            navItems() {
+                if (!this.user) return [];
+                return [
+                    { label: '种植户端', href: '/farmer.html' },
+                    { label: '实时监测', href: '/monitor.html' }
+                ];
+            }
+        },
+        mounted() {
+            this.init();
+            this.snapshotSource = openSnapshotStream(batch => this.applySnapshots(batch));
+            this.snapshotTimer = setInterval(this.loadSnapshots, 3000);
+            this.pollTimer = setInterval(() => {
+                this.loadMine();
+                this.loadAlarms();
+                this.loadDevices();
+            }, 3000);
+        },
+        beforeUnmount() {
+            clearInterval(this.snapshotTimer);
+            clearInterval(this.pollTimer);
+            if (this.snapshotSource) this.snapshotSource.close();
+        },
+        methods: {
+            async init() {
+                try {
+                    this.user = await API.get('/api/auth/me');
+                    this.applyForm.contact = this.user.username;
+                    await Promise.all([this.loadServices(), this.loadMine(), this.loadDevices(), this.loadSnapshots(), this.loadAlarms()]);
+                } catch (e) {
+                    // 401 已由 API 封装跳转
+                }
+            },
+            switchTab(key) {
+                this.tab = key;
+                if (key === 'catalog') this.loadServices();
+                else if (key === 'mine') this.loadMine();
+                else if (key === 'devices') this.loadDevices();
+            },
+            async loadServices() {
+                this.loading = true;
+                try {
+                    this.services = await API.get('/api/service-items') || [];
+                } catch (e) {
+                    showToast(e.message, 'error');
+                } finally {
+                    this.loading = false;
+                }
+            },
+            async loadMine() {
+                try {
+                    this.applications = await API.get('/api/service-applications/mine') || [];
+                } catch (e) {
+                    // 轮询失败不打断页面
+                }
+            },
+            async loadDevices() {
+                try {
+                    this.devices = await API.get('/api/devices') || [];
+                } catch (e) {
+                    // 轮询失败不打断页面
+                }
+            },
+            async loadSnapshots() {
+                try {
+                    this.snapshots = await API.get('/api/snapshots') || {};
+                } catch (e) {
+                    // 轮询失败不打断页面
+                }
+            },
+            applySnapshots(batch) {
+                if (batch && typeof batch === 'object') {
+                    Object.assign(this.snapshots, batch);
+                }
+            },
+            async loadAlarms() {
+                try {
+                    this.activeAlarms = await API.get('/api/alarms/active') || [];
+                } catch (e) {
+                    // 轮询失败不打断页面
+                }
+            },
+            openApply(service) {
+                this.applyError = '';
+                this.applyForm = {
+                    serviceCode: service.code,
+                    serviceName: service.name,
+                    maxGreenhouses: service.maxGreenhouses,
+                    greenhouseCount: 1,
+                    contact: this.user ? this.user.username : '',
+                    phone: ''
+                };
+                this.applyModal.open = true;
+            },
+            async submitApply() {
+                const f = this.applyForm;
+                if (!Number.isInteger(f.greenhouseCount) || f.greenhouseCount < 1 || f.greenhouseCount > f.maxGreenhouses) {
+                    this.applyError = '大棚数量必须在 1~' + f.maxGreenhouses + ' 之间';
+                    return;
+                }
+                if (!f.contact) {
+                    this.applyError = '联系人不能为空';
+                    return;
+                }
+                if (f.phone && f.phone.length > 32) {
+                    this.applyError = '联系电话不能超过 32 字';
+                    return;
+                }
+                this.submitting = true;
+                try {
+                    await API.post('/api/service-applications', {
+                        serviceCode: f.serviceCode,
+                        greenhouseCount: f.greenhouseCount,
+                        contact: f.contact,
+                        phone: f.phone || null
+                    });
+                    this.applyModal.open = false;
+                    showToast('申请已提交，等待审批', 'success');
+                    this.tab = 'mine';
+                    await this.loadMine();
+                } catch (e) {
+                    this.applyError = e.message;
+                } finally {
+                    this.submitting = false;
+                }
+            },
+            appStatusLabel(status) {
+                return { PENDING: '待审批', APPROVED: '已通过', REJECTED: '已驳回', PROVISIONED: '已开通' }[status] || status;
+            },
+            appBadgeClass(status) {
+                return { PENDING: 'badge-warn', REJECTED: 'badge-danger' }[status] || '';
+            },
+            stepClass(application, index) {
+                if (application.status === 'REJECTED') {
+                    if (index === 0) return 'done';
+                    if (index === 1) return 'rejected';
+                    return '';
+                }
+                if (application.status === 'PROVISIONED') return 'done';
+                const order = { PENDING: 1, APPROVED: 2 }[application.status] || 0;
+                if (index < order) return 'done';
+                if (index === order) return 'current';
+                return '';
+            },
+            snapshotOf(device, point) {
+                return this.snapshots[device.deviceCode + ':' + point.pointCode] || null;
+            },
+            valueText(device, point) {
+                const snapshot = this.snapshotOf(device, point);
+                if (!snapshot) return '-';
+                const unit = snapshot.unit || point.unit;
+                return formatByUnit(snapshot.value, unit) + (unit ? ' ' + unit : '');
+            },
+            isBad(device, point) {
+                const snapshot = this.snapshotOf(device, point);
+                return snapshot && snapshot.quality === 'BAD';
+            },
+            protocolLabel(protocol) {
+                return String(protocol || '').toUpperCase() === 'MODBUS' ? 'Modbus TCP' : 'MQTT';
+            },
+            fmtTime(value) {
+                if (!value) return '-';
+                const d = new Date(value);
+                const pad = n => String(n).padStart(2, '0');
+                return pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' +
+                    pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+            },
+            async logout() {
+                try {
+                    await API.post('/api/auth/logout', {});
+                } catch (e) {
+                    // 忽略，统一回登录页
+                }
+                location.href = '/login.html';
+            }
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>

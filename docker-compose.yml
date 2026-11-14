@@ -1,10 +1,12 @@
 # 复制到项目根目录
-# 只起中间件：MySQL 8.4 + EMQX 5.8。后端仍在 IDE 里跑，连 localhost，配置零改动。
+# 只起中间件：MySQL 8.4 + EMQX 5.8 + Modbus TCP 模拟器。后端仍在 IDE 里跑，连 localhost，配置零改动。
 #
-# 启动：docker compose up -d
+# 启动：docker compose up -d --build
 # 状态：docker compose ps
 # 日志：docker compose logs -f emqx
+#       docker compose logs -f modbus
 # 停止：docker compose down
+# 清库重建：docker compose down -v && docker compose up -d --build
 # 连库：mysql -h 127.0.0.1 -P 3306 -uroot -p123456 -e "show databases;"
 # 控制台：http://localhost:18083  （admin / public）
 
@@ -48,6 +50,18 @@ services:
     volumes:
       - emqx-data:/opt/emqx/data
       - emqx-log:/opt/emqx/log
+
+  modbus:
+    build:
+      context: ./scripts
+      dockerfile: Dockerfile.modbus
+    container_name: dh-modbus
+    restart: unless-stopped
+    ports:
+      - "5020:5020"
+    # 脚本挂载进来，改完只需 docker compose restart modbus
+    volumes:
+      - ./scripts/modbus_simulator.py:/app/modbus_simulator.py:ro
 
 volumes:
   mysql-data:

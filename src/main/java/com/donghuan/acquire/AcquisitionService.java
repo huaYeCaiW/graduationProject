@@ -41,4 +41,33 @@ public class AcquisitionService implements CommandLineRunner {
             log.info("设备接入完成：deviceCode={}，protocol={}", device.getDeviceCode(), device.getProtocol());
         }
     }
+
+    // 按设备协议找到适配器并连接，供新增设备/新增测点后热生效
+    public void connect(DeviceConfig device) {
+        if (adapterMap == null) {
+            return;
+        }
+        ProtocolAdapter adapter = adapterMap.get(device.getProtocol());
+        if (adapter == null) {
+            log.warn("未找到协议适配器：deviceCode={}，protocol={}",
+                    device.getDeviceCode(), device.getProtocol());
+            return;
+        }
+        try {
+            adapter.connect(device);
+        } catch (Exception e) {
+            log.warn("设备接入失败：deviceCode={}", device.getDeviceCode(), e);
+        }
+    }
+
+    // 按设备协议找到适配器并断开，供删除接口调用
+    public void disconnect(DeviceConfig device) {
+        if (adapterMap == null) {
+            return;
+        }
+        ProtocolAdapter adapter = adapterMap.get(device.getProtocol());
+        if (adapter != null) {
+            adapter.disconnect(device.getDeviceCode());
+        }
+    }
 }

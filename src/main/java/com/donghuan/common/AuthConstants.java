@@ -10,6 +10,10 @@ public final class AuthConstants {
     public static final String PERM_POINT_WRITE    = "point:write";
     public static final String PERM_THRESHOLD_WRITE = "threshold:write";
     public static final String PERM_ALARM_CONFIRM  = "alarm:confirm";
+    public static final String PERM_SERVICE_WRITE  = "service:write";
+    public static final String PERM_APPLICATION_SUBMIT = "application:submit";
+    public static final String PERM_APPLICATION_REVIEW = "application:review";
+    public static final String PERM_PROVISION_EXECUTE  = "provision:execute";
 
     private AuthConstants() {
     }

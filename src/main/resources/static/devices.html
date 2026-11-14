@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>设备管理 - 东环合作社</title>
+    <link rel="stylesheet" href="/css/common.css">
+</head>
+<body>
+<div id="app" v-cloak>
+    <header class="topbar">
+        <div class="brand"><span class="brand-dot"></span>东环合作社 · 设备管理</div>
+        <div class="topbar-right">
+            <nav class="nav">
+                <a v-for="item in navItems" :key="item.href" class="nav-link"
+                   :class="{ active: item.href === '/devices.html' }" :href="item.href">{{ item.label }}</a>
+            </nav>
+            <span v-if="user">{{ user.username }}（{{ roleLabel }}）</span>
+            <button class="btn btn-sm" @click="logout">退出登录</button>
+        </div>
+    </header>
+
+    <main class="page">
+        <div class="toolbar">
+            <button v-if="isAdmin" class="btn btn-primary" @click="openCreateDevice">新增设备</button>
+            <button v-if="isAdmin" class="btn" @click="openDisabled">已删除设备</button>
+            <button class="btn" :disabled="loading" @click="loadDevices">{{ loading ? '刷新中...' : '刷新' }}</button>
+            <input v-model.trim="keyword" placeholder="搜索设备编码 / 名称" style="width: 220px; margin-left: auto">
+            <span class="hint">实时值由服务端推送，500ms 更新；断线自动重连</span>
+        </div>
+
+        <div class="layout">
+            <section class="card">
+                <div class="card-head">
+                    <span class="card-title">设备（{{ filteredDevices.length }}）</span>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>编码</th>
+                            <th>名称</th>
+                            <th>协议</th>
+                            <th>测点</th>
+                            <th v-if="isAdmin">操作</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr v-for="d in filteredDevices" :key="d.deviceCode"
+                            :class="{ selected: current && current.deviceCode === d.deviceCode }"
+                            @click="selectDevice(d.deviceCode)">
+                            <td class="code">{{ d.deviceCode }}</td>
+                            <td>{{ d.name }}</td>
+                            <td>{{ protocolLabel(d.protocol) }}</td>
+                            <td>{{ (d.points || []).length }}</td>
+                            <td v-if="isAdmin" @click.stop>
+                                <button class="btn btn-sm" @click="openEditDevice(d)">编辑</button>
+                                <button class="btn btn-sm btn-danger" @click="removeDevice(d)">删除</button>
+                            </td>
+                        </tr>
+                        <tr v-if="!filteredDevices.length">
+                            <td :colspan="isAdmin ? 5 : 4" class="empty">暂无设备{{ isAdmin ? '，点击“新增设备”开始' : '' }}</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="card">
+                <div class="card-head">
+                    <span class="card-title">
+                        测点<span v-if="current" class="muted"> · {{ current.name }}（{{ current.deviceCode }}）</span>
+                    </span>
+                    <button v-if="isAdmin" class="btn btn-sm btn-primary" :disabled="!current" @click="openCreatePoint">新增测点</button>
+                </div>
+                <div v-if="current" class="card-body" style="padding-bottom: 0">
+                    <div class="hint">
+                        协议：{{ protocolLabel(current.protocol) }}　连接：<span class="code">{{ connectionText(current) }}</span>
+                    </div>
+                    <div class="hint" v-if="hasInvalidPoint">标红测点与当前协议不兼容，编辑地址保存后可恢复采集。</div>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>编码</th>
+                            <th>名称</th>
+                            <th>地址</th>
+                            <th>类型</th>
+                            <th>单位</th>
+                            <th>周期(s)</th>
+                            <th>告警阈值</th>
+                            <th>量程</th>
+                            <th>实时值</th>
+                            <th>状态</th>
+                            <th v-if="isAdmin">操作</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr v-for="p in points" :key="p.pointCode">
+                            <td class="code">{{ p.pointCode }}</td>
+                            <td>{{ p.metric || '-' }}</td>
+                            <td class="code">{{ pointAddress(p) }}</td>
+                            <td>{{ p.dataTypeCode || '-' }}</td>
+                            <td>{{ p.unit || '-' }}</td>
+                            <td>{{ p.freq || '-' }}</td>
+                            <td>{{ thresholdText(p) }}</td>
+                            <td>{{ rangeText(p) }}</td>
+                            <td class="point-value" :class="{ bad: snapshotQuality(p) === 'BAD' }">{{ snapshotText(p) }}</td>
+                            <td>
+                                <span class="badge" :class="{ 'badge-invalid': p.invalid }">
+                                    {{ p.invalid ? '无效' : '正常' }}
+                                </span>
+                            </td>
+                            <td v-if="isAdmin">
+                                <button class="btn btn-sm" @click="openEditPoint(p)">编辑</button>
+                                <button class="btn btn-sm btn-danger" @click="removePoint(p)">删除</button>
+                            </td>
+                        </tr>
+                        <tr v-if="!points.length">
+                            <td :colspan="isAdmin ? 11 : 10" class="empty">{{ current ? '该设备暂无测点' : '请选择左侧设备' }}</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <div class="modal-mask" v-if="deviceModal.open" @click.self="deviceModal.open = false">
+        <div class="modal">
+            <h3>{{ deviceModal.mode === 'create' ? '新增设备' : (deviceModal.mode === 'restore' ? '恢复设备' : '编辑设备') }}</h3>
+            <div class="form-grid">
+                <div class="form-item">
+                    <label>设备编码</label>
+                    <input v-model.trim="deviceForm.deviceCode" :disabled="deviceModal.mode !== 'create'" placeholder="如 th-01">
+                </div>
+                <div class="form-item">
+                    <label>设备名称</label>
+                    <input v-model.trim="deviceForm.name" placeholder="如 1号大棚">
+                </div>
+                <div class="form-item">
+                    <label>租户 ID</label>
+                    <input v-model="deviceForm.tenantId" type="number" placeholder="留空表示不绑定">
+                </div>
+                <div class="form-item">
+                    <label>协议</label>
+                    <select v-model="deviceForm.protocol">
+                        <option value="mqtt">MQTT</option>
+                        <option value="modbus">Modbus TCP</option>
+                    </select>
+                </div>
+                <div class="form-item full">
+                    <label>连接配置</label>
+                    <input v-model.trim="deviceForm.connectionConfig"
+                           :placeholder="deviceForm.protocol === 'modbus' ? '127.0.0.1:5020:1' : 'donghuan/test/th-01'">
+                    <span class="hint">{{ deviceForm.protocol === 'modbus' ? '格式：host:port[:unitId]' : 'MQTT 主题' }}</span>
+                </div>
+                <div class="form-item full" v-if="deviceModal.mode === 'restore'">
+                    <span class="hint">恢复后设备与测点一起启用，并自动重新采集。</span>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn" @click="deviceModal.open = false">取消</button>
+                <button class="btn btn-primary" :disabled="saving" @click="saveDevice">
+                    {{ saving ? '保存中...' : '保存' }}
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-mask" v-if="pointModal.open" @click.self="pointModal.open = false">
+        <div class="modal">
+            <h3>{{ pointModal.mode === 'create' ? '新增测点' : '编辑测点' }}</h3>
+            <div class="form-grid">
+                <div class="form-item">
+                    <label>测点编码</label>
+                    <input v-model.trim="pointForm.pointCode" :disabled="pointModal.mode !== 'create'" placeholder="如 temperature">
+                </div>
+                <div class="form-item">
+                    <label>测点名称</label>
+                    <input v-model.trim="pointForm.name" placeholder="如 空气温度">
+                </div>
+                <div class="form-item full">
+                    <label>地址 / JSON 路径</label>
+                    <input v-model.trim="pointForm.address"
+                           :placeholder="current && current.protocol === 'MODBUS' ? 'holding:0:float32' : '$.temperature'">
+                    <span class="hint" v-if="current && current.protocol === 'MODBUS'">格式：寄存器类型:地址:数据类型，如 holding:0:float32</span>
+                    <span class="hint" v-else>JSON 路径必须以 $ 开头，如 $.temperature</span>
+                </div>
+                <div class="form-item full" v-if="current && current.protocol === 'MQTT'">
+                    <label>采样时间路径（可选）</label>
+                    <input v-model.trim="pointForm.timeAddress" placeholder="如 $.timestamp">
+                    <span class="hint">报文里携带毫秒时间戳的字段，留空用接收时间</span>
+                </div>
+                <div class="form-item">
+                    <label>数据类型</label>
+                    <select v-if="current && current.protocol === 'MODBUS'" v-model="pointForm.dataType">
+                        <option value="uint16">uint16</option>
+                        <option value="int16">int16</option>
+                        <option value="uint32">uint32</option>
+                        <option value="int32">int32</option>
+                        <option value="float32">float32</option>
+                        <option value="bool">bool</option>
+                    </select>
+                    <input v-else v-model.trim="pointForm.dataType" placeholder="double">
+                </div>
+                <div class="form-item">
+                    <label>单位</label>
+                    <input v-model.trim="pointForm.unit" placeholder="如 ℃">
+                </div>
+                <div class="form-item">
+                    <label>采集周期（秒）</label>
+                    <input v-model="pointForm.freqSeconds" type="number" min="1" placeholder="默认 3">
+                </div>
+                <div class="form-item">
+                    <label>告警下限</label>
+                    <input v-model="pointForm.minValue" type="number" step="any" placeholder="不设置留空">
+                </div>
+                <div class="form-item">
+                    <label>告警上限</label>
+                    <input v-model="pointForm.maxValue" type="number" step="any" placeholder="不设置留空">
+                </div>
+                <div class="form-item">
+                    <label>物理量程下限</label>
+                    <input v-model="pointForm.rangeMin" type="number" step="any" placeholder="不校验留空">
+                </div>
+                <div class="form-item">
+                    <label>物理量程上限</label>
+                    <input v-model="pointForm.rangeMax" type="number" step="any" placeholder="不校验留空">
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn" @click="pointModal.open = false">取消</button>
+                <button class="btn btn-primary" :disabled="saving" @click="savePoint">
+                    {{ saving ? '保存中...' : '保存' }}
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-mask" v-if="disabledModal.open" @click.self="disabledModal.open = false">
+        <div class="modal">
+            <h3>已删除设备</h3>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>编码</th>
+                        <th>名称</th>
+                        <th>协议</th>
+                        <th>连接</th>
+                        <th>操作</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr v-for="d in disabledModal.list" :key="d.deviceCode">
+                        <td class="code">{{ d.deviceCode }}</td>
+                        <td>{{ d.name }}</td>
+                        <td>{{ protocolLabel(d.protocol) }}</td>
+                        <td class="code">{{ d.connectionConfig || '-' }}</td>
+                        <td>
+                            <button class="btn btn-sm btn-primary" @click="openRestoreDevice(d)">恢复</button>
+                        </td>
+                    </tr>
+                    <tr v-if="!disabledModal.list.length">
+                        <td colspan="5" class="empty">没有已删除设备</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="modal-actions">
+                <button class="btn" @click="disabledModal.open = false">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="/js/vue.global.prod.js"></script>
+<script src="/js/api.js"></script>
+<script>
+    const { createApp } = Vue;
+
+    function emptyDeviceForm() {
+        return { deviceCode: '', name: '', tenantId: '', protocol: 'mqtt', connectionConfig: '' };
+    }
+
+    function emptyPointForm() {
+        return {
+            pointCode: '', name: '', address: '', timeAddress: '', dataType: 'double',
+            unit: '', freqSeconds: 5, minValue: '', maxValue: '', rangeMin: '', rangeMax: ''
+        };
+    }
+
+    createApp({
+        data() {
+            return {
+                user: null,
+                devices: [],
+                current: null,
+                snapshots: {},
+                snapshotTimer: null,
+                snapshotSource: null,
+                keyword: '',
+                loading: false,
+                saving: false,
+                deviceModal: { open: false, mode: 'create' },
+                pointModal: { open: false, mode: 'create' },
+                disabledModal: { open: false, list: [] },
+                deviceForm: emptyDeviceForm(),
+                pointForm: emptyPointForm()
+            };
+        },
+        computed: {
+            roleLabel() {
+                if (!this.user) return '';
+                return { ADMIN: '管理员', OPS: '运维', FARMER: '种植户' }[this.user.role] || this.user.role;
+            },
+            isAdmin() {
+                return !!this.user && this.user.role === 'ADMIN';
+            },
+            navItems() {
+                if (!this.user) return [];
+                const items = [];
+                if (this.user.role === 'ADMIN') items.push({ label: '管理端', href: '/admin.html' });
+                else if (this.user.role === 'OPS') items.push({ label: '运维端', href: '/ops.html' });
+                else if (this.user.role === 'FARMER') items.push({ label: '种植户端', href: '/farmer.html' });
+                items.push({ label: '设备管理', href: '/devices.html' });
+                items.push({ label: '实时监测', href: '/monitor.html' });
+                return items;
+            },
+            filteredDevices() {
+                const key = this.keyword.toLowerCase();
+                if (!key) return this.devices;
+                return this.devices.filter(d =>
+                    (d.deviceCode || '').toLowerCase().includes(key) ||
+                    (d.name || '').toLowerCase().includes(key));
+            },
+            points() {
+                return this.current && Array.isArray(this.current.points) ? this.current.points : [];
+            },
+            hasInvalidPoint() {
+                return this.points.some(p => p.invalid);
+            }
+        },
+        mounted() {
+            this.init();
+            this.loadSnapshots();
+            // SSE 实时推送，轮询只做断线兜底
+            this.snapshotSource = openSnapshotStream(batch => this.applySnapshots(batch));
+            this.snapshotTimer = setInterval(this.loadSnapshots, 5000);
+        },
+        beforeUnmount() {
+            clearInterval(this.snapshotTimer);
+            if (this.snapshotSource) this.snapshotSource.close();
+        },
+        methods: {
+            async init() {
+                try {
+                    this.user = await API.get('/api/auth/me');
+                    await this.loadDevices();
+                } catch (e) {
+                    // 401 已由 API 封装跳转
+                }
+            },
+            async loadSnapshots() {
+                try {
+                    this.snapshots = await API.get('/api/snapshots') || {};
+                } catch (e) {
+                    // 轮询失败不打断页面，下一轮重试
+                }
+            },
+            applySnapshots(batch) {
+                if (batch && typeof batch === 'object') {
+                    Object.assign(this.snapshots, batch);
+                }
+            },
+            async loadDevices() {
+                this.loading = true;
+                try {
+                    this.devices = await API.get('/api/devices') || [];
+                    if (this.current) {
+                        const exists = this.devices.some(d => d.deviceCode === this.current.deviceCode);
+                        if (exists) {
+                            await this.selectDevice(this.current.deviceCode);
+                        } else {
+                            this.current = null;
+                        }
+                    }
+                    if (!this.current && this.devices.length) {
+                        await this.selectDevice(this.devices[0].deviceCode);
+                    }
+                } catch (e) {
+                    showToast(e.message, 'error');
+                } finally {
+                    this.loading = false;
+                }
+            },
+            async selectDevice(deviceCode) {
+                try {
+                    this.current = await API.get('/api/devices/' + encodeURIComponent(deviceCode));
+                } catch (e) {
+                    showToast(e.message, 'error');
+                }
+            },
+            openCreateDevice() {
+                this.deviceForm = emptyDeviceForm();
+                if (this.user && this.user.tenantId) {
+                    this.deviceForm.tenantId = this.user.tenantId;
+                }
+                this.deviceModal = { open: true, mode: 'create' };
+            },
+            openEditDevice(device) {
+                this.deviceForm = {
+                    deviceCode: device.deviceCode,
+                    name: device.name || '',
+                    tenantId: device.tenantId == null ? '' : device.tenantId,
+                    protocol: (device.protocol || 'MQTT').toLowerCase(),
+                    connectionConfig: device.connection && device.connection.config ? device.connection.config : ''
+                };
+                this.deviceModal = { open: true, mode: 'edit' };
+            },
+            async openDisabled() {
+                try {
+                    const list = await API.get('/api/devices/disabled') || [];
+                    this.disabledModal = { open: true, list };
+                } catch (e) {
+                    showToast(e.message, 'error');
+                }
+            },
+            openRestoreDevice(device) {
+                this.disabledModal.open = false;
+                this.deviceForm = {
+                    deviceCode: device.deviceCode,
+                    name: device.name || '',
+                    tenantId: device.tenantId == null ? '' : device.tenantId,
+                    protocol: (device.protocol || 'MQTT').toLowerCase(),
+                    connectionConfig: device.connectionConfig || ''
+                };
+                this.deviceModal = { open: true, mode: 'restore' };
+            },
+            async saveDevice() {
+                const f = this.deviceForm;
+                if (!f.deviceCode || !f.name) {
+                    showToast('设备编码和名称不能为空', 'error');
+                    return;
+                }
+                const body = {
+                    deviceCode: f.deviceCode,
+                    tenantId: f.tenantId === '' || f.tenantId == null ? null : Number(f.tenantId),
+                    name: f.name,
+                    protocol: f.protocol,
+                    connectionConfig: f.connectionConfig || null,
+                    enabled: this.deviceModal.mode === 'restore' ? true : null
+                };
+                this.saving = true;
+                try {
+                    if (this.deviceModal.mode === 'create') {
+                        await API.post('/api/devices', body);
+                        showToast('设备已创建', 'success');
+                    } else {
+                        await API.put('/api/devices/' + encodeURIComponent(f.deviceCode), body);
+                        showToast(this.deviceModal.mode === 'restore' ? '设备已恢复' : '设备已更新', 'success');
+                    }
+                    const code = f.deviceCode;
+                    this.deviceModal.open = false;
+                    await this.loadDevices();
+                    await this.selectDevice(code);
+                } catch (e) {
+                    showToast(e.message, 'error');
+                } finally {
+                    this.saving = false;
+                }
+            },
+            async removeDevice(device) {
+                if (!confirm('删除设备 ' + device.deviceCode + '？历史数据会保留，可在“已删除设备”中恢复。')) {
+                    return;
+                }
+                try {
+                    await API.del('/api/devices/' + encodeURIComponent(device.deviceCode));
+                    showToast('设备已删除', 'success');
+                    if (this.current && this.current.deviceCode === device.deviceCode) {
+                        this.current = null;
+                    }
+                    await this.loadDevices();
+                } catch (e) {
+                    showToast(e.message, 'error');
+                }
+            },
+            openCreatePoint() {
+                this.pointForm = emptyPointForm();
+                if (this.current && this.current.protocol === 'MODBUS') {
+                    this.pointForm.dataType = 'float32';
+                }
+                this.pointModal = { open: true, mode: 'create' };
+            },
+            openEditPoint(point) {
+                this.pointForm = {
+                    pointCode: point.pointCode,
+                    name: point.metric || '',
+                    address: this.pointAddress(point),
+                    timeAddress: point.timeJsonPath || '',
+                    dataType: point.dataTypeCode || (this.current.protocol === 'MODBUS' ? 'float32' : 'double'),
+                    unit: point.unit || '',
+                    freqSeconds: point.freq == null ? '' : point.freq,
+                    minValue: point.min == null ? '' : point.min,
+                    maxValue: point.max == null ? '' : point.max,
+                    rangeMin: point.rangeMin == null ? '' : point.rangeMin,
+                    rangeMax: point.rangeMax == null ? '' : point.rangeMax
+                };
+                this.pointModal = { open: true, mode: 'edit' };
+            },
+            async savePoint() {
+                if (!this.current) return;
+                const f = this.pointForm;
+                if (!f.pointCode || !f.name || !f.address || !f.dataType) {
+                    showToast('编码、名称、地址、数据类型不能为空', 'error');
+                    return;
+                }
+                const body = {
+                    pointCode: f.pointCode,
+                    name: f.name,
+                    address: f.address,
+                    timeAddress: f.timeAddress || null,
+                    dataType: f.dataType,
+                    unit: f.unit || null,
+                    freqSeconds: f.freqSeconds === '' || f.freqSeconds == null ? null : Number(f.freqSeconds),
+                    minValue: this.numOrNull(f.minValue),
+                    maxValue: this.numOrNull(f.maxValue),
+                    rangeMin: this.numOrNull(f.rangeMin),
+                    rangeMax: this.numOrNull(f.rangeMax)
+                };
+                this.saving = true;
+                try {
+                    const base = '/api/points/' + encodeURIComponent(this.current.deviceCode);
+                    if (this.pointModal.mode === 'create') {
+                        await API.post(base, body);
+                        showToast('测点已创建', 'success');
+                    } else {
+                        await API.put(base + '/' + encodeURIComponent(f.pointCode), body);
+                        showToast('测点已更新', 'success');
+                    }
+                    this.pointModal.open = false;
+                    await this.loadDevices();
+                } catch (e) {
+                    showToast(e.message, 'error');
+                } finally {
+                    this.saving = false;
+                }
+            },
+            async removePoint(point) {
+                if (!this.current) return;
+                if (!confirm('删除测点 ' + point.pointCode + '？')) {
+                    return;
+                }
+                try {
+                    await API.del('/api/points/' + encodeURIComponent(this.current.deviceCode) +
+                        '/' + encodeURIComponent(point.pointCode));
+                    showToast('测点已删除', 'success');
+                    await this.loadDevices();
+                } catch (e) {
+                    showToast(e.message, 'error');
+                }
+            },
+            async logout() {
+                try {
+                    await API.post('/api/auth/logout', {});
+                } catch (e) {
+                    // 忽略，统一回登录页
+                }
+                location.href = '/login.html';
+            },
+            numOrNull(value) {
+                return value === '' || value == null ? null : Number(value);
+            },
+            protocolLabel(protocol) {
+                return protocol === 'MODBUS' ? 'Modbus TCP' : 'MQTT';
+            },
+            connectionText(device) {
+                return device.connection && device.connection.config ? device.connection.config : '未配置';
+            },
+            pointAddress(point) {
+                if (this.current && this.current.protocol === 'MODBUS') {
+                    return point.addressText || '-';
+                }
+                return point.jsonPath || '-';
+            },
+            thresholdText(point) {
+                if (point.min == null && point.max == null) return '未设置';
+                return (point.min == null ? '-' : point.min) + ' ~ ' + (point.max == null ? '-' : point.max);
+            },
+            rangeText(point) {
+                if (point.rangeMin == null && point.rangeMax == null) return '不校验';
+                return (point.rangeMin == null ? '-' : point.rangeMin) + ' ~ ' + (point.rangeMax == null ? '-' : point.rangeMax);
+            },
+            snapshotOf(point) {
+                if (!this.current) return null;
+                return this.snapshots[this.current.deviceCode + ':' + point.pointCode] || null;
+            },
+            snapshotText(point) {
+                const snapshot = this.snapshotOf(point);
+                if (!snapshot) return '-';
+                const unit = snapshot.unit || point.unit;
+                return formatByUnit(snapshot.value, unit) + (unit ? ' ' + unit : '');
+            },
+            snapshotQuality(point) {
+                const snapshot = this.snapshotOf(point);
+                return snapshot ? snapshot.quality : null;
+            }
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>

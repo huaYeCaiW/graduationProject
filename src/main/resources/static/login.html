@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - 东环合作社</title>
+    <link rel="stylesheet" href="/css/common.css">
+</head>
+<body>
+<div id="app" v-cloak class="login-wrap">
+    <div class="login-card">
+        <div class="login-title">东环合作社</div>
+        <div class="login-sub">农业大棚监测与合作社服务平台</div>
+
+        <div class="form-item" style="margin-bottom: 12px">
+            <label>用户名</label>
+            <input v-model.trim="username" autocomplete="username" placeholder="请输入用户名" @keyup.enter="login">
+        </div>
+        <div class="form-item">
+            <label>密码</label>
+            <input type="password" v-model="password" autocomplete="current-password" placeholder="请输入密码" @keyup.enter="login">
+        </div>
+
+        <div class="login-error">{{ error }}</div>
+
+        <button class="btn btn-primary" style="width: 100%" :disabled="loading" @click="login">
+            {{ loading ? '登录中...' : '登录' }}
+        </button>
+    </div>
+</div>
+
+<script src="/js/vue.global.prod.js"></script>
+<script src="/js/api.js"></script>
+<script>
+    const { createApp } = Vue;
+
+    createApp({
+        data() {
+            return {
+                username: '',
+                password: '',
+                error: '',
+                loading: false
+            };
+        },
+        mounted() {
+            // 已登录直接进对应角色工作台
+            API.get('/api/auth/me')
+                .then(user => location.href = homeForRole(user.role))
+                .catch(() => {});
+        },
+        methods: {
+            async login() {
+                this.error = '';
+                if (!this.username || !this.password) {
+                    this.error = '请输入用户名和密码';
+                    return;
+                }
+                this.loading = true;
+                try {
+                    const user = await API.post('/api/auth/login', {
+                        username: this.username,
+                        password: this.password
+                    });
+                    location.href = homeForRole(user.role);
+                } catch (e) {
+                    this.error = e.message;
+                } finally {
+                    this.loading = false;
+                }
+            }
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>

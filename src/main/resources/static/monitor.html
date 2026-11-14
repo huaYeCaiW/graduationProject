@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实时监测 - 东环合作社</title>
+    <link rel="stylesheet" href="/css/common.css">
+</head>
+<body>
+<div id="app" v-cloak>
+    <header class="topbar">
+        <div class="brand"><span class="brand-dot"></span>东环合作社 · 实时监测</div>
+        <div class="topbar-right">
+            <nav class="nav">
+                <a v-for="item in navItems" :key="item.href" class="nav-link"
+                   :class="{ active: item.href === '/monitor.html' }" :href="item.href">{{ item.label }}</a>
+            </nav>
+            <span v-if="user">{{ user.username }}（{{ roleLabel }}）</span>
+            <button class="btn btn-sm" @click="logout">退出登录</button>
+        </div>
+    </header>
+
+    <main class="page">
+        <div class="toolbar">
+            <span class="hint">实时值由服务端推送，500ms 更新；断线自动重连，轮询兜底</span>
+            <span class="hint" style="margin-left: auto" v-if="streamOk">推送已连接</span>
+        </div>
+
+        <div class="device-grid">
+            <section class="card" v-for="d in devices" :key="d.deviceCode">
+                <div class="card-head">
+                    <span class="card-title">{{ d.name }} <span class="muted code">{{ d.deviceCode }}</span></span>
+                    <span class="badge">{{ protocolLabel(d.protocol) }}</span>
+                </div>
+                <div>
+                    <div class="point-row" v-for="p in (d.points || [])" :key="p.pointCode"
+                         :class="{ selected: isSelected(d, p) }" @click="selectPoint(d, p)">
+                        <div>
+                            <div class="point-name">{{ p.metric || p.pointCode }}</div>
+                            <div class="point-code">{{ p.pointCode }}</div>
+                        </div>
+                        <div>
+                            <div class="point-value" :class="{ bad: isBad(d, p) }">{{ valueText(d, p) }}</div>
+                        </div>
+                    </div>
+                    <div class="empty" v-if="!d.points || !d.points.length">暂无测点</div>
+                </div>
+            </section>
+            <div class="empty" v-if="!devices.length">暂无设备</div>
+        </div>
+
+        <div class="monitor-grid">
+            <section class="card">
+                <div class="card-head">
+                    <span class="card-title">
+                        历史曲线<span v-if="selected" class="muted"> · {{ selected.metric || selected.pointCode }}</span>
+                    </span>
+                    <div class="range-tabs" v-if="selected">
+                        <button class="btn btn-sm" v-for="opt in rangeOptions" :key="String(opt.value)"
+                                :class="{ active: rangeHours === opt.value }" @click="changeRange(opt.value)">{{ opt.label }}
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div v-if="!selected" class="empty">点击上方测点查看历史曲线</div>
+                    <div v-else-if="loadingHistory" class="empty">加载中...</div>
+                    <div v-else-if="!history.length" class="empty">该时间段暂无数据</div>
+                    <div class="chart" v-else-if="chart">
+                        <svg v-bind="{ viewBox: '0 0 ' + chart.w + ' ' + chart.h }">
+                            <line v-for="(tick, i) in chart.ticks" :key="'grid' + i"
+                                  :x1="chart.padL" :x2="chart.w - chart.padR"
+                                  :y1="tick.y" :y2="tick.y" stroke="#eef3ee"/>
+                            <text v-for="(tick, i) in chart.ticks" :key="'label' + i"
+                                  :x="chart.padL - 8" :y="tick.y + 4" text-anchor="end"
+                                  font-size="11" fill="#6b7a6f">{{ tick.label }}</text>
+                            <polyline :points="chart.polyline" fill="none" stroke="#2f7d4f" stroke-width="2"/>
+                            <circle v-for="(pt, i) in chart.points" :key="'dot' + i"
+                                    v-show="chart.points.length <= 300"
+                                    :cx="pt.x" :cy="pt.y" r="2.5" fill="#2f7d4f"/>
+                            <text :x="chart.padL" :y="chart.h - 8" font-size="11"
+                                  fill="#6b7a6f">{{ chart.startLabel }}</text>
+                            <text :x="chart.w - chart.padR" :y="chart.h - 8" text-anchor="end"
+                                  font-size="11" fill="#6b7a6f">{{ chart.endLabel }}</text>
+                        </svg>
+                        <div class="chart-meta">
+                            <span>最低 {{ chart.minLabel }}</span>
+                            <span>最高 {{ chart.maxLabel }}</span>
+                            <span>共 {{ history.length }} 条</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="card">
+                <div class="card-head">
+                    <span class="card-title">活动告警（{{ activeAlarms.length }}）</span>
+                    <button class="btn btn-sm" @click="loadAlarms">刷新</button>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>测点</th>
+                            <th>类型</th>
+                            <th>值 / 阈值</th>
+                            <th>时间</th>
+                            <th>操作</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr v-for="a in activeAlarms" :key="a.id">
+                            <td class="code">#{{ a.pointId }}</td>
+                            <td>{{ limitLabel(a.limitType) }}</td>
+                            <td>{{ a.value }} / {{ a.threshold }}</td>
+                            <td class="muted">{{ fmtTime(a.sampleAt) }}</td>
+                            <td>
+                                <span v-if="a.confirmedAt" class="muted">已确认</span>
+                                <button v-else-if="user && (user.role === 'ADMIN' || user.role === 'OPS')" class="btn btn-sm"
+                                        @click="confirmAlarm(a)">确认</button>
+                                <span v-else class="muted">-</span>
+                            </td>
+                        </tr>
+                        <tr v-if="!activeAlarms.length">
+                            <td colspan="5" class="empty">暂无活动告警</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </main>
+</div>
+
+<script src="/js/vue.global.prod.js"></script>
+<script src="/js/api.js"></script>
+<script>
+    const { createApp } = Vue;
+
+    createApp({
+        data() {
+            return {
+                user: null,
+                devices: [],
+                snapshots: {},
+                activeAlarms: [],
+                selected: null,
+                history: [],
+                rangeOptions: [
+                    { value: 1, label: '1h' },
+                    { value: 6, label: '6h' },
+                    { value: 24, label: '24h' },
+                    { value: null, label: '全部' }
+                ],
+                rangeHours: null,
+                loadingHistory: false,
+                snapshotTimer: null,
+                snapshotSource: null,
+                streamOk: false,
+                alarmTimer: null
+            };
+        },
+        computed: {
+            roleLabel() {
+                if (!this.user) return '';
+                return { ADMIN: '管理员', OPS: '运维', FARMER: '种植户' }[this.user.role] || this.user.role;
+            },
+            navItems() {
+                if (!this.user) return [];
+                const items = [];
+                if (this.user.role === 'ADMIN') items.push({ label: '管理端', href: '/admin.html' });
+                else if (this.user.role === 'OPS') items.push({ label: '运维端', href: '/ops.html' });
+                else if (this.user.role === 'FARMER') items.push({ label: '种植户端', href: '/farmer.html' });
+                if (this.user.role !== 'FARMER') items.push({ label: '设备管理', href: '/devices.html' });
+                items.push({ label: '实时监测', href: '/monitor.html' });
+                return items;
+            },
+            chart() {
+                const raw = this.history.filter(p => typeof p.value === 'number' && this.sampleTime(p));
+                if (!raw.length) return null;
+
+                // 数据量大时抽样画线，避免 SVG 节点过多
+                const step = Math.max(1, Math.ceil(raw.length / 800));
+                const list = raw.filter((_, index) => index % step === 0 || index === raw.length - 1);
+
+                const w = 720, h = 240, padL = 56, padR = 18, padT = 18, padB = 30;
+                let lo = Infinity, hi = -Infinity;
+                for (const item of raw) {
+                    if (item.value < lo) lo = item.value;
+                    if (item.value > hi) hi = item.value;
+                }
+                const rawLo = lo;
+                const rawHi = hi;
+
+                // 百分比测点固定 0～100，刻度取整数；其他测点按数据自动缩放
+                const unit = this.selected ? this.selected.unit : null;
+                const isPercent = !!unit && unit.includes('%');
+                let tickCount;
+                if (isPercent) {
+                    lo = 0;
+                    hi = 100;
+                    tickCount = 5;
+                } else {
+                    if (lo === hi) {
+                        lo -= 1;
+                        hi += 1;
+                    }
+                    const padding = (hi - lo) * 0.12;
+                    lo -= padding;
+                    hi += padding;
+                    tickCount = 4;
+                }
+
+                const t0 = new Date(this.sampleTime(list[0])).getTime();
+                const t1 = new Date(this.sampleTime(list[list.length - 1])).getTime();
+                const innerW = w - padL - padR;
+                const innerH = h - padT - padB;
+
+                const points = list.map(item => {
+                    const t = new Date(this.sampleTime(item)).getTime();
+                    const x = t1 === t0 ? padL + innerW / 2 : padL + (t - t0) / (t1 - t0) * innerW;
+                    const y = padT + (hi - item.value) / (hi - lo) * innerH;
+                    return { x: Number(x.toFixed(1)), y: Number(y.toFixed(1)) };
+                });
+
+                const ticks = [];
+                for (let i = 0; i < tickCount; i++) {
+                    const ratio = i / (tickCount - 1);
+                    const value = hi - (hi - lo) * ratio;
+                    ticks.push({
+                        y: Number((padT + innerH * ratio).toFixed(1)),
+                        label: isPercent ? String(Math.round(value)) : this.fmtValue(value)
+                    });
+                }
+
+                return {
+                    w, h, padL, padR, padT, padB, points, ticks,
+                    polyline: points.map(p => p.x + ',' + p.y).join(' '),
+                    minLabel: this.fmtValue(rawLo),
+                    maxLabel: this.fmtValue(rawHi),
+                    startLabel: this.fmtTime(this.sampleTime(list[0])),
+                    endLabel: this.fmtTime(this.sampleTime(list[list.length - 1]))
+                };
+            }
+        },
+        mounted() {
+            this.init();
+            // SSE 实时推送，轮询只做断线兜底
+            this.snapshotSource = openSnapshotStream(batch => this.applySnapshots(batch));
+            this.snapshotTimer = setInterval(this.loadSnapshots, 3000);
+            this.alarmTimer = setInterval(this.loadAlarms, 3000);
+        },
+        beforeUnmount() {
+            clearInterval(this.snapshotTimer);
+            clearInterval(this.alarmTimer);
+            if (this.snapshotSource) this.snapshotSource.close();
+        },
+        methods: {
+            async init() {
+                try {
+                    this.user = await API.get('/api/auth/me');
+                    await this.loadDevices();
+                    await this.loadSnapshots();
+                    await this.loadAlarms();
+                } catch (e) {
+                    // 401 已由 API 封装跳转
+                }
+            },
+            async loadDevices() {
+                try {
+                    this.devices = await API.get('/api/devices') || [];
+                    if (!this.selected) {
+                        const device = this.devices.find(d => (d.points || []).length);
+                        if (device) {
+                            await this.selectPoint(device, device.points[0]);
+                        }
+                    }
+                } catch (e) {
+                    showToast(e.message, 'error');
+                }
+            },
+            async loadSnapshots() {
+                try {
+                    this.snapshots = await API.get('/api/snapshots') || {};
+                } catch (e) {
+                    // 轮询失败不打断页面
+                }
+            },
+            applySnapshots(batch) {
+                if (batch && typeof batch === 'object') {
+                    Object.assign(this.snapshots, batch);
+                    this.streamOk = true;
+                }
+            },
+            async loadAlarms() {
+                try {
+                    this.activeAlarms = await API.get('/api/alarms/active') || [];
+                } catch (e) {
+                    // 轮询失败不打断页面
+                }
+            },
+            async selectPoint(device, point) {
+                this.selected = {
+                    deviceCode: device.deviceCode,
+                    pointCode: point.pointCode,
+                    metric: point.metric,
+                    unit: point.unit,
+                    protocol: device.protocol
+                };
+                await this.loadHistory();
+            },
+            async loadHistory() {
+                if (!this.selected) return;
+                this.loadingHistory = true;
+                try {
+                    const end = new Date();
+                    const start = this.rangeHours == null
+                        ? new Date(0)
+                        : new Date(end.getTime() - this.rangeHours * 3600 * 1000);
+                    const url = '/api/points/' + encodeURIComponent(this.selected.deviceCode) +
+                        '/' + encodeURIComponent(this.selected.pointCode) + '/range' +
+                        '?start=' + encodeURIComponent(start.toISOString()) +
+                        '&end=' + encodeURIComponent(end.toISOString());
+                    const list = await API.get(url) || [];
+                    this.history = list.slice().sort((a, b) =>
+                        new Date(this.sampleTime(a)) - new Date(this.sampleTime(b)));
+                } catch (e) {
+                    this.history = [];
+                    showToast(e.message, 'error');
+                } finally {
+                    this.loadingHistory = false;
+                }
+            },
+            changeRange(hours) {
+                this.rangeHours = hours;
+                this.loadHistory();
+            },
+            async confirmAlarm(alarm) {
+                try {
+                    await API.request('/api/alarms/' + alarm.id + '/confirm', { method: 'POST' });
+                    showToast('告警已确认', 'success');
+                    await this.loadAlarms();
+                } catch (e) {
+                    showToast(e.message, 'error');
+                }
+            },
+            isSelected(device, point) {
+                return this.selected &&
+                    this.selected.deviceCode === device.deviceCode &&
+                    this.selected.pointCode === point.pointCode;
+            },
+            snapshotOf(device, point) {
+                return this.snapshots[device.deviceCode + ':' + point.pointCode] || null;
+            },
+            valueText(device, point) {
+                const snapshot = this.snapshotOf(device, point);
+                if (!snapshot) return '-';
+                const unit = snapshot.unit || point.unit;
+                return formatByUnit(snapshot.value, unit) + (unit ? ' ' + unit : '');
+            },
+            isBad(device, point) {
+                const snapshot = this.snapshotOf(device, point);
+                return snapshot && snapshot.quality === 'BAD';
+            },
+            protocolLabel(protocol) {
+                return protocol === 'MODBUS' ? 'Modbus TCP' : 'MQTT';
+            },
+            limitLabel(type) {
+                return type === 'MAX' ? '上限' : '下限';
+            },
+            sampleTime(point) {
+                return point.sampledAt || point.timestamp;
+            },
+            fmtTime(value) {
+                if (!value) return '-';
+                const d = new Date(value);
+                const pad = n => String(n).padStart(2, '0');
+                return pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' +
+                    pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+            },
+            fmtValue(value) {
+                return formatByUnit(value, this.selected ? this.selected.unit : null);
+            },
+            async logout() {
+                try {
+                    await API.post('/api/auth/logout', {});
+                } catch (e) {
+                    // 忽略，统一回登录页
+                }
+                location.href = '/login.html';
+            }
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>

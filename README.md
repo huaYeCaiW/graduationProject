@@ -151,7 +151,8 @@ EMQX 控制台：<http://localhost:18083>（`admin / public`）。
 | point.time\_address           | 取样时间 JsonPath，如 `$.ts`        |
 | point.unit                    | 单位，如 `℃`                      |
 | point.min\_value / max\_value | 告警阈值                          |
-| point.freq\_seconds           | 采样间隔字段（当前节流固定 3 秒，未使用该字段）     |
+| point.range\_min / range\_max | 物理量程，`DataCleaner` 越界判 BAD；为空不校验 |
+| point.freq\_seconds           | 采样间隔，入库与 Modbus 轮询按此执行；未配置默认 3 秒 |
 | point.enabled                 | 停用后不加载映射、不参与告警                |
 
 `seed.sql` 已按 `th-01` 写好，开箱可用；也可以直接改库调整设备与测点。
@@ -169,7 +170,7 @@ src/main/java/com/donghuan
 ├── pipeline/       单位换算、校验、去重、阈值判定
 ├── service/        告警收敛与业务处理
 ├── store/          PointStore / AlarmStore、内存快照、点位映射；jdbc/ 为落库实现
-├── stream/         Reactor 热流：快照 / 告警 / 存储三路订阅 + 3 秒节流
+├── stream/         Reactor 热流：快照 / 告警 / 存储三路订阅 + 按测点周期节流
 └── web/controller/ REST 接口
 ```
 
@@ -199,15 +200,11 @@ PowerShell 的 `<` 重定向和 `Get-Content |` 管道默认按 ANSI 编码，�
 
 ## 已知限制
 
-- 量程校验仍写死 `-50 ~ 150`，未使用库中配置
-
-- 无鉴权与权限控制，确认接口固定使用 `user id=1`
+- 物理量程只能新增/修改，不能通过 API 清空（不传表示沿用旧值）
 
 - 无前端页面
 
 - 单机单实例：快照、活跃告警、去重状态都在 JVM 内存，重启后快照与去重状态丢失（ACTIVE 告警会从库回填）
-
-- 采样节流固定 3 秒，未读取 `freq_seconds`
 
 - 0.1s 高频上报尚未压测
 

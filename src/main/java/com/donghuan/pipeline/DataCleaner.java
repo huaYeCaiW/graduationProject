@@ -1,5 +1,7 @@
 package com.donghuan.pipeline;
 
+import com.donghuan.common.DeviceConfig;
+import com.donghuan.common.DeviceProperties;
 import com.donghuan.common.PointKeys;
 import com.donghuan.model.PointValue;
 import com.donghuan.model.Quality;
@@ -19,14 +21,21 @@ public class DataCleaner {
 
     private final Map<String, Instant> lastAcceptedAt = new ConcurrentHashMap<>();
     private final PointKeys keys;
+    private final DeviceProperties deviceProperties;
 
-    // 校验
+    // 校验：按测点物理量程判定，量程为空表示不校验
     public PointValue verify(PointValue pv) {
-        // 经过parse后数据配置一定存在，此处不再重复查配置
-        // todo 判定使用固定值，要修改为从配置取
-        if (pv.getValue() < -50 || pv.getValue() > 150) {
-            log.debug("非法值deviceCode：{}，pointCode：{}",
-                    pv.getDeviceCode(), pv.getPointCode());
+        DeviceConfig.Point point = deviceProperties.findDevice(pv.getDeviceCode())
+                .flatMap(device -> device.findPoint(pv.getPointCode()))
+                .orElse(null);
+
+        boolean invalid = point != null
+                && ((point.getRangeMin() != null && pv.getValue() < point.getRangeMin())
+                || (point.getRangeMax() != null && pv.getValue() > point.getRangeMax()));
+
+        if (invalid) {
+            log.debug("非法值deviceCode：{}，pointCode：{}，value：{}",
+                    pv.getDeviceCode(), pv.getPointCode(), pv.getValue());
             pv.setQuality(Quality.BAD.name());
         } else {
             pv.setQuality(Quality.OK.name());
