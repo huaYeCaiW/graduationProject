@@ -1,6 +1,6 @@
 package com.donghuan.store;
 
-import com.donghuan.model.PointCommand;
+import com.donghuan.model.command.PointCommand;
 
 public interface PointAdminStore {
 

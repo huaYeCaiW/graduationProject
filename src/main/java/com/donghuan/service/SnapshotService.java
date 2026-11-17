@@ -1,8 +1,8 @@
 package com.donghuan.service;
 
-import com.donghuan.model.LoginUser;
-import com.donghuan.model.PointValue;
-import com.donghuan.model.TenantScope;
+import com.donghuan.model.security.LoginUser;
+import com.donghuan.model.domain.PointValue;
+import com.donghuan.model.security.TenantScope;
 import com.donghuan.store.PointSnapshot;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

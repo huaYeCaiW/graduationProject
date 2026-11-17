@@ -1,9 +1,9 @@
 package com.donghuan.web.controller;
 
 import com.donghuan.common.AuthConstants;
-import com.donghuan.model.LoginUser;
-import com.donghuan.model.PointCommand;
-import com.donghuan.model.PointValue;
+import com.donghuan.model.security.LoginUser;
+import com.donghuan.model.command.PointCommand;
+import com.donghuan.model.domain.PointValue;
 import com.donghuan.service.PointService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;

@@ -1,5 +1,7 @@
-package com.donghuan.model;
+package com.donghuan.model.security;
 
+
+import com.donghuan.model.enums.Role;
 
 public record TenantScope(boolean seeAll, Long tenantId) {
 

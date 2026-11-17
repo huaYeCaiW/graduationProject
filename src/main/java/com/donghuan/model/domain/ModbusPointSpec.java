@@ -1,4 +1,7 @@
-package com.donghuan.model;
+package com.donghuan.model.domain;
+
+import com.donghuan.model.enums.ModbusDataType;
+import com.donghuan.model.enums.RegisterType;
 
 // 测点地址串：寄存器类型:地址:数据类型[:缩放]
 public record ModbusPointSpec(RegisterType registerType, int address,

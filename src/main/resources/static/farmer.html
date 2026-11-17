@@ -26,36 +26,52 @@
                     @click="switchTab(t.key)">{{ t.label }}</button>
         </div>
 
-        <!-- 服务申请 -->
-        <section v-show="tab === 'catalog'">
-            <div class="toolbar">
-                <button class="btn" :disabled="loading" @click="loadServices">{{ loading ? '刷新中...' : '刷新' }}</button>
-                <span class="hint" style="margin-left: auto">提交后由合作社管理员审批，通过后运维上门开通</span>
-            </div>
-            <div class="service-grid">
-                <section class="card" v-for="s in services" :key="s.code">
-                    <div class="card-head">
-                        <span class="card-title">{{ s.name }}</span>
-                        <span class="badge">{{ s.maxGreenhouses }} 棚以内</span>
-                    </div>
-                    <div class="card-body">
-                        <div class="muted" style="margin-bottom: 10px">{{ s.description || '暂无说明' }}</div>
-                        <div class="detail-grid" style="margin-bottom: 10px">
-                            <div class="detail-item"><span class="label">大棚数上限</span>{{ s.maxGreenhouses }}</div>
-                            <div class="detail-item"><span class="label">单棚测点上限</span>{{ s.maxPointsPerGreenhouse }}</div>
+        <!-- 申请服务 -->
+        <section v-show="tab === 'apply'">
+            <div class="card" style="max-width: 720px">
+                <div class="card-head">
+                    <span class="card-title">申请监测服务</span>
+                    <span class="hint">一单一棚，提交后由合作社审批</span>
+                </div>
+                <div class="card-body">
+                    <div class="form-grid">
+                        <div class="form-item">
+                            <label>大棚名称</label>
+                            <input v-model.trim="applyForm.greenhouseName" placeholder="如 三号大棚">
                         </div>
-                        <span class="tag" v-for="m in s.metrics" :key="m.metricCode">
-                            {{ m.name }}<span v-if="m.unit">（{{ m.unit }}）</span>
-                            <span v-if="m.defaultMin != null && m.defaultMax != null" class="muted">
-                                {{ m.defaultMin }}~{{ m.defaultMax }}
-                            </span>
-                        </span>
-                        <div class="modal-actions">
-                            <button class="btn btn-primary" @click="openApply(s)">申请服务</button>
+                        <div class="form-item">
+                            <label>申请人</label>
+                            <input v-model.trim="applyForm.applicantName" placeholder="申请人姓名">
+                        </div>
+                        <div class="form-item">
+                            <label>联系电话</label>
+                            <input v-model.trim="applyForm.phone" placeholder="便于运维联系">
                         </div>
                     </div>
-                </section>
-                <div class="empty" v-if="!services.length">暂无可申请的服务</div>
+
+                    <div class="section-title">需要监测的项目</div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                            <tr><th>监测项目</th><th style="width: 140px">数量</th></tr>
+                            </thead>
+                            <tbody>
+                            <tr v-for="d in demandTypes" :key="d.type">
+                                <td>{{ d.label }}</td>
+                                <td><input type="number" min="0" max="20" v-model.number="d.count"></td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="hint" style="margin-top: 8px">不需要的项目填 0；数量表示该类型测点的路数</div>
+
+                    <div class="form-error">{{ applyError }}</div>
+                    <div class="modal-actions">
+                        <button class="btn btn-primary" :disabled="submitting" @click="submitApply">
+                            {{ submitting ? '提交中...' : '提交申请' }}
+                        </button>
+                    </div>
+                </div>
             </div>
         </section>
 
@@ -70,34 +86,33 @@
                     <div class="card-head">
                         <span class="card-title">
                             {{ a.applicationNo }}
-                            <span class="muted"> · {{ a.serviceName }}</span>
+                            <span class="muted"> · {{ a.greenhouseName }}</span>
                         </span>
                         <span class="badge" :class="appBadgeClass(a.status)">{{ appStatusLabel(a.status) }}</span>
                     </div>
                     <div class="card-body">
                         <div class="detail-grid">
-                            <div class="detail-item"><span class="label">申请棚数</span>{{ a.greenhouseCount }}</div>
-                            <div class="detail-item"><span class="label">联系人</span>{{ a.contact }}</div>
+                            <div class="detail-item"><span class="label">大棚</span>{{ a.greenhouseName }}</div>
+                            <div class="detail-item"><span class="label">申请人</span>{{ a.applicantName }}</div>
                             <div class="detail-item"><span class="label">联系电话</span>{{ a.phone || '-' }}</div>
                             <div class="detail-item"><span class="label">申请时间</span>{{ fmtTime(a.createdAt) }}</div>
-                            <div class="detail-item"><span class="label">审批时间</span>{{ fmtTime(a.reviewedAt) }}</div>
-                            <div class="detail-item"><span class="label">开通单号</span>{{ a.provisionTaskId ? '#' + a.provisionTaskId : '-' }}</div>
                         </div>
-                        <div class="steps">
-                            <div class="step" v-for="(label, index) in stepLabels" :key="index"
-                                 :class="stepClass(a, index)">{{ label }}</div>
+                        <div style="margin: 8px 0">
+                            <span class="tag" v-for="p in a.points" :key="p.type">
+                                {{ pointTypeLabel(p.type) }} × {{ p.count }}
+                            </span>
                         </div>
-                        <div v-if="a.status === 'REJECTED'" class="form-error">驳回原因：{{ a.rejectReason }}</div>
-                        <div v-else-if="a.status === 'PENDING'" class="hint" style="margin-top: 8px">等待管理员审批</div>
-                        <div v-else-if="a.status === 'APPROVED'" class="hint" style="margin-top: 8px">审批已通过，等待运维开通</div>
-                        <div v-else class="hint" style="margin-top: 8px">服务已开通，可到「我的大棚」查看数据</div>
+                        <div class="hint" style="margin-top: 8px" v-if="a.status === 'PENDING'">等待管理员审批</div>
+                        <div class="hint" style="margin-top: 8px" v-else-if="a.status === 'APPROVED'">已通过审批，等待运维上门安装设备</div>
+                        <div class="hint" style="margin-top: 8px" v-else-if="a.status === 'INSTALLED'">设备已安装完成，可在实时监测中查看数据</div>
+                        <div class="hint" style="margin-top: 8px; color: #b42318" v-else-if="a.status === 'REJECTED'">驳回原因：{{ a.rejectReason || '未填写' }}</div>
                     </div>
                 </section>
             </div>
             <div class="card" v-else>
                 <div class="empty">
                     暂无申请
-                    <a class="link" style="margin-left: 6px" @click="switchTab('catalog')">去服务申请</a>
+                    <a class="link" style="margin-left: 6px" @click="switchTab('apply')">去申请</a>
                 </div>
             </div>
         </section>
@@ -127,7 +142,7 @@
                 </section>
                 <div class="empty" v-if="!devices.length">
                     暂无大棚，请先提交服务申请
-                    <a class="link" style="margin-left: 6px" @click="switchTab('catalog')">去申请</a>
+                    <a class="link" style="margin-left: 6px" @click="switchTab('apply')">去申请</a>
                 </div>
             </div>
 
@@ -158,37 +173,6 @@
             </section>
         </section>
     </main>
-
-    <div class="modal-mask" v-if="applyModal.open" @click.self="applyModal.open = false">
-        <div class="modal">
-            <h3>申请服务</h3>
-            <div class="form-grid">
-                <div class="form-item full">
-                    <label>服务</label>
-                    <input :value="applyForm.serviceName" disabled>
-                </div>
-                <div class="form-item">
-                    <label>大棚数量（1~{{ applyForm.maxGreenhouses }}）</label>
-                    <input type="number" min="1" :max="applyForm.maxGreenhouses" v-model.number="applyForm.greenhouseCount">
-                </div>
-                <div class="form-item">
-                    <label>联系人</label>
-                    <input v-model.trim="applyForm.contact" placeholder="联系人姓名">
-                </div>
-                <div class="form-item full">
-                    <label>联系电话（可选）</label>
-                    <input v-model.trim="applyForm.phone" placeholder="便于运维联系">
-                </div>
-            </div>
-            <div class="form-error">{{ applyError }}</div>
-            <div class="modal-actions">
-                <button class="btn" @click="applyModal.open = false">取消</button>
-                <button class="btn btn-primary" :disabled="submitting" @click="submitApply">
-                    {{ submitting ? '提交中...' : '提交申请' }}
-                </button>
-            </div>
-        </div>
-    </div>
 </div>
 
 <script src="/js/vue.global.prod.js"></script>
@@ -200,22 +184,24 @@
         data() {
             return {
                 user: null,
-                tab: 'catalog',
+                tab: 'apply',
                 tabs: [
-                    { key: 'catalog', label: '服务申请' },
+                    { key: 'apply', label: '申请服务' },
                     { key: 'mine', label: '我的申请' },
                     { key: 'devices', label: '我的大棚' }
                 ],
-                stepLabels: ['提交申请', '审批', '开通', '完成'],
-                loading: false,
                 submitting: false,
-                services: [],
                 applications: [],
                 devices: [],
                 snapshots: {},
                 activeAlarms: [],
-                applyModal: { open: false },
-                applyForm: { serviceCode: '', serviceName: '', maxGreenhouses: 1, greenhouseCount: 1, contact: '', phone: '' },
+                demandTypes: [
+                    { type: 'temperature', label: '温度', count: 1 },
+                    { type: 'humidity', label: '空气湿度', count: 1 },
+                    { type: 'soil', label: '土壤湿度', count: 0 },
+                    { type: 'light', label: '光照', count: 0 }
+                ],
+                applyForm: { greenhouseName: '', applicantName: '', phone: '' },
                 applyError: '',
                 snapshotSource: null,
                 snapshotTimer: null,
@@ -253,27 +239,16 @@
             async init() {
                 try {
                     this.user = await API.get('/api/auth/me');
-                    this.applyForm.contact = this.user.username;
-                    await Promise.all([this.loadServices(), this.loadMine(), this.loadDevices(), this.loadSnapshots(), this.loadAlarms()]);
+                    this.applyForm.applicantName = this.user.username;
+                    await Promise.all([this.loadMine(), this.loadDevices(), this.loadSnapshots(), this.loadAlarms()]);
                 } catch (e) {
                     // 401 已由 API 封装跳转
                 }
             },
             switchTab(key) {
                 this.tab = key;
-                if (key === 'catalog') this.loadServices();
-                else if (key === 'mine') this.loadMine();
+                if (key === 'mine') this.loadMine();
                 else if (key === 'devices') this.loadDevices();
-            },
-            async loadServices() {
-                this.loading = true;
-                try {
-                    this.services = await API.get('/api/service-items') || [];
-                } catch (e) {
-                    showToast(e.message, 'error');
-                } finally {
-                    this.loading = false;
-                }
             },
             async loadMine() {
                 try {
@@ -308,42 +283,46 @@
                     // 轮询失败不打断页面
                 }
             },
-            openApply(service) {
-                this.applyError = '';
-                this.applyForm = {
-                    serviceCode: service.code,
-                    serviceName: service.name,
-                    maxGreenhouses: service.maxGreenhouses,
-                    greenhouseCount: 1,
-                    contact: this.user ? this.user.username : '',
-                    phone: ''
-                };
-                this.applyModal.open = true;
-            },
             async submitApply() {
                 const f = this.applyForm;
-                if (!Number.isInteger(f.greenhouseCount) || f.greenhouseCount < 1 || f.greenhouseCount > f.maxGreenhouses) {
-                    this.applyError = '大棚数量必须在 1~' + f.maxGreenhouses + ' 之间';
+                if (!f.greenhouseName) {
+                    this.applyError = '大棚名称不能为空';
                     return;
                 }
-                if (!f.contact) {
-                    this.applyError = '联系人不能为空';
+                if (!f.applicantName) {
+                    this.applyError = '申请人不能为空';
                     return;
                 }
-                if (f.phone && f.phone.length > 32) {
-                    this.applyError = '联系电话不能超过 32 字';
+                if (!f.phone || f.phone.length < 6) {
+                    this.applyError = '联系电话格式错误';
                     return;
                 }
+                const points = [];
+                for (const d of this.demandTypes) {
+                    const count = Number(d.count) || 0;
+                    if (count < 0 || count > 20 || !Number.isInteger(count)) {
+                        this.applyError = d.label + ' 数量必须在 0~20 之间';
+                        return;
+                    }
+                    if (count > 0) points.push({ type: d.type, count });
+                }
+                if (!points.length) {
+                    this.applyError = '至少选择一项监测项目';
+                    return;
+                }
+
                 this.submitting = true;
                 try {
                     await API.post('/api/service-applications', {
-                        serviceCode: f.serviceCode,
-                        greenhouseCount: f.greenhouseCount,
-                        contact: f.contact,
-                        phone: f.phone || null
+                        greenhouseName: f.greenhouseName,
+                        applicantName: f.applicantName,
+                        points,
+                        phone: f.phone
                     });
-                    this.applyModal.open = false;
                     showToast('申请已提交，等待审批', 'success');
+                    this.applyForm.greenhouseName = '';
+                    this.demandTypes.forEach(d => { d.count = d.type === 'temperature' || d.type === 'humidity' ? 1 : 0; });
+                    this.applyError = '';
                     this.tab = 'mine';
                     await this.loadMine();
                 } catch (e) {
@@ -352,23 +331,14 @@
                     this.submitting = false;
                 }
             },
+            pointTypeLabel(type) {
+                return { temperature: '温度', humidity: '空气湿度', soil: '土壤湿度', light: '光照' }[type] || type;
+            },
             appStatusLabel(status) {
-                return { PENDING: '待审批', APPROVED: '已通过', REJECTED: '已驳回', PROVISIONED: '已开通' }[status] || status;
+                return { PENDING: '待审批', APPROVED: '已通过', REJECTED: '已驳回', INSTALLED: '已开通' }[status] || status;
             },
             appBadgeClass(status) {
                 return { PENDING: 'badge-warn', REJECTED: 'badge-danger' }[status] || '';
-            },
-            stepClass(application, index) {
-                if (application.status === 'REJECTED') {
-                    if (index === 0) return 'done';
-                    if (index === 1) return 'rejected';
-                    return '';
-                }
-                if (application.status === 'PROVISIONED') return 'done';
-                const order = { PENDING: 1, APPROVED: 2 }[application.status] || 0;
-                if (index < order) return 'done';
-                if (index === order) return 'current';
-                return '';
             },
             snapshotOf(device, point) {
                 return this.snapshots[device.deviceCode + ':' + point.pointCode] || null;

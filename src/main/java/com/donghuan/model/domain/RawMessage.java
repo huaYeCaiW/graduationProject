@@ -1,5 +1,6 @@
-package com.donghuan.model;
+package com.donghuan.model.domain;
 
+import com.donghuan.model.enums.Protocol;
 import lombok.Data;
 import java.time.Instant;
 

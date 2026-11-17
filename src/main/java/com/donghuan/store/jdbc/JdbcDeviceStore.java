@@ -1,7 +1,7 @@
 package com.donghuan.store.jdbc;
 
-import com.donghuan.model.DeviceCommand;
-import com.donghuan.model.TenantScope;
+import com.donghuan.model.command.DeviceCommand;
+import com.donghuan.model.security.TenantScope;
 import com.donghuan.store.DeviceStore;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;

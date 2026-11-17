@@ -1,4 +1,4 @@
-package com.donghuan.model;
+package com.donghuan.model.command;
 
 // 设备新增/修改参数，字段与 device 表列对齐
 // enabled 只在修改时使用：true 表示恢复逻辑删除的设备，其余场景忽略

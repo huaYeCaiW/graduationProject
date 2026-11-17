@@ -1,4 +1,4 @@
-package com.donghuan.model;
+package com.donghuan.model.command;
 
 // 测点新增/修改请求：字段与 point 表列对齐
 public record PointCommand(

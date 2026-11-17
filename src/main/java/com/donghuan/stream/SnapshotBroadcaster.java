@@ -2,9 +2,9 @@ package com.donghuan.stream;
 
 import com.donghuan.common.DeviceProperties;
 import com.donghuan.common.PointKeys;
-import com.donghuan.model.PointValue;
-import com.donghuan.model.Quality;
-import com.donghuan.model.TenantScope;
+import com.donghuan.model.domain.PointValue;
+import com.donghuan.model.enums.Quality;
+import com.donghuan.model.security.TenantScope;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;

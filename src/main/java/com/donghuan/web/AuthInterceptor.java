@@ -1,8 +1,8 @@
 package com.donghuan.web;
 
 import com.donghuan.common.AuthConstants;
-import com.donghuan.model.LoginUser;
-import com.donghuan.model.Role;
+import com.donghuan.model.security.LoginUser;
+import com.donghuan.model.enums.Role;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -82,8 +82,8 @@ public class AuthInterceptor implements HandlerInterceptor {
                 && (path.endsWith("/approve") || path.endsWith("/reject"))) {
             return AuthConstants.PERM_APPLICATION_REVIEW;
         }
-        if ("POST".equals(method) && path.startsWith("/api/provision-tasks/")
-                && path.endsWith("/provision")) {
+        if ("POST".equals(method) && path.startsWith("/api/service-applications/")
+                && path.endsWith("/confirm")) {
             return AuthConstants.PERM_PROVISION_EXECUTE;
         }
         return null;

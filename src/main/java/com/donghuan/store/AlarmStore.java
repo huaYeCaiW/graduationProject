@@ -1,7 +1,7 @@
 package com.donghuan.store;
 
-import com.donghuan.model.AlarmValue;
-import com.donghuan.model.TenantScope;
+import com.donghuan.model.view.AlarmValue;
+import com.donghuan.model.security.TenantScope;
 
 import java.time.Instant;
 import java.util.List;

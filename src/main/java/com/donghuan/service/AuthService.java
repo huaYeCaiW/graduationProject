@@ -1,6 +1,6 @@
 package com.donghuan.service;
 
-import com.donghuan.model.LoginUser;
+import com.donghuan.model.security.LoginUser;
 import com.donghuan.store.UserStore;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;

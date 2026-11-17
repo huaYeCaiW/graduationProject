@@ -1,7 +1,7 @@
 package com.donghuan.store;
 
-import com.donghuan.model.DeviceCommand;
-import com.donghuan.model.TenantScope;
+import com.donghuan.model.command.DeviceCommand;
+import com.donghuan.model.security.TenantScope;
 
 import java.util.List;
 

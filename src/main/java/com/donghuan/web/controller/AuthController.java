@@ -1,7 +1,7 @@
 package com.donghuan.web.controller;
 
 import com.donghuan.common.AuthConstants;
-import com.donghuan.model.LoginUser;
+import com.donghuan.model.security.LoginUser;
 import com.donghuan.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;

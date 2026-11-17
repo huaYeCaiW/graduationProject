@@ -1,9 +1,9 @@
 package com.donghuan.parser;
 
 import com.donghuan.common.DeviceConfig;
-import com.donghuan.model.PointValue;
-import com.donghuan.model.Protocol;
-import com.donghuan.model.RawMessage;
+import com.donghuan.model.domain.PointValue;
+import com.donghuan.model.enums.Protocol;
+import com.donghuan.model.domain.RawMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;

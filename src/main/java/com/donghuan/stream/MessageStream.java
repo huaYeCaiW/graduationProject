@@ -2,8 +2,8 @@ package com.donghuan.stream;
 
 import com.donghuan.common.DeviceProperties;
 import com.donghuan.common.PointKeys;
-import com.donghuan.model.PointValue;
-import com.donghuan.model.RawMessage;
+import com.donghuan.model.domain.PointValue;
+import com.donghuan.model.domain.RawMessage;
 import com.donghuan.parser.MessageParser;
 import com.donghuan.pipeline.DataCleaner;
 import com.donghuan.service.AlarmService;

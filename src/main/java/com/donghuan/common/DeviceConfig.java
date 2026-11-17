@@ -1,8 +1,8 @@
 package com.donghuan.common;
 
-import com.donghuan.model.ModbusDataType;
-import com.donghuan.model.Protocol;
-import com.donghuan.model.RegisterType;
+import com.donghuan.model.enums.ModbusDataType;
+import com.donghuan.model.enums.Protocol;
+import com.donghuan.model.enums.RegisterType;
 import lombok.Data;
 
 import java.util.List;

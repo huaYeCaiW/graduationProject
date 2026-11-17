@@ -1,4 +1,4 @@
-package com.donghuan.model;
+package com.donghuan.model.enums;
 
 public enum AlarmStatus {
     ACTIVE,

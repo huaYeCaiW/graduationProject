@@ -1,6 +1,6 @@
 package com.donghuan.store;
 
-import com.donghuan.model.Role;
+import com.donghuan.model.enums.Role;
 
 import java.util.Optional;
 

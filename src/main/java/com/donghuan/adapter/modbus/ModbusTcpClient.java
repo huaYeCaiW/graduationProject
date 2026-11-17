@@ -1,6 +1,6 @@
 package com.donghuan.adapter.modbus;
 
-import com.donghuan.model.RegisterType;
+import com.donghuan.model.enums.RegisterType;
 import lombok.Getter;
 
 import java.io.EOFException;

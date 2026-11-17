@@ -1,6 +1,6 @@
 package com.donghuan.store.jdbc;
 
-import com.donghuan.model.PointCommand;
+import com.donghuan.model.command.PointCommand;
 import com.donghuan.store.PointAdminStore;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;

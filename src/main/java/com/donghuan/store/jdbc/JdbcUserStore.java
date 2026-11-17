@@ -1,6 +1,6 @@
 package com.donghuan.store.jdbc;
 
-import com.donghuan.model.Role;
+import com.donghuan.model.enums.Role;
 import com.donghuan.store.UserStore;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;

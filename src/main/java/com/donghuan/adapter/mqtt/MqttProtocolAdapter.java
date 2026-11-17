@@ -2,8 +2,8 @@ package com.donghuan.adapter.mqtt;
 
 import com.donghuan.adapter.ProtocolAdapter;
 import com.donghuan.common.DeviceConfig;
-import com.donghuan.model.Protocol;
-import com.donghuan.model.RawMessage;
+import com.donghuan.model.enums.Protocol;
+import com.donghuan.model.domain.RawMessage;
 import com.donghuan.stream.MessageStream;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;

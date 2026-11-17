@@ -1,9 +1,9 @@
 package com.donghuan.web.controller;
 
 import com.donghuan.common.AuthConstants;
-import com.donghuan.model.LoginUser;
-import com.donghuan.model.PointValue;
-import com.donghuan.model.TenantScope;
+import com.donghuan.model.security.LoginUser;
+import com.donghuan.model.domain.PointValue;
+import com.donghuan.model.security.TenantScope;
 import com.donghuan.service.SnapshotService;
 import com.donghuan.stream.SnapshotBroadcaster;
 import lombok.RequiredArgsConstructor;

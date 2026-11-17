@@ -1,6 +1,6 @@
 package com.donghuan.common;
 
-import com.donghuan.model.Protocol;
+import com.donghuan.model.enums.Protocol;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

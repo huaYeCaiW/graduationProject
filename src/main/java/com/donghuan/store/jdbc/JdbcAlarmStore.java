@@ -1,9 +1,9 @@
 package com.donghuan.store.jdbc;
 
-import com.donghuan.model.AlarmStatus;
-import com.donghuan.model.AlarmValue;
-import com.donghuan.model.LimitType;
-import com.donghuan.model.TenantScope;
+import com.donghuan.model.enums.AlarmStatus;
+import com.donghuan.model.view.AlarmValue;
+import com.donghuan.model.enums.LimitType;
+import com.donghuan.model.security.TenantScope;
 import com.donghuan.store.AlarmStore;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

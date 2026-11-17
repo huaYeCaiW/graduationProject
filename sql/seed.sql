@@ -1,4 +1,4 @@
--- 部署测试用种子数据（阶段 1 租户化 + 阶段 8 服务目录）
+-- 部署测试用种子数据（阶段 1 租户化）
 -- 执行前提：已执行 schema.sql
 -- 可重复执行：固定主键 + INSERT IGNORE；但不会覆盖已存在的行，需重置请先清表
 -- 时间统一按 UTC 写入，与 schema.sql 约定一致
@@ -73,28 +73,11 @@ insert ignore into alarm
 values
     (1, 1, 39.500, 38.000, 'MAX', 'ACTIVE', utc_timestamp(3) - interval 3 minute, utc_timestamp(3) - interval 3 minute);
 
--- 7) 服务目录：一个标准大棚监测服务 + 四项指标模板
---    开通任务按 service_metric 生成测点骨架，默认阈值/量程/周期可在管理端修改
-insert ignore into service_item
-(id, code, name, description, max_greenhouses, max_points_per_greenhouse, enabled)
-values
-    (1, 'greenhouse-basic', '标准大棚监测服务', '温度、空气湿度、土壤湿度、光照四项基础监测', 2, 6, 1);
-
-insert ignore into service_metric
-(id, service_item_id, metric_code, name, unit, data_type, default_min, default_max, range_min, range_max, freq_seconds, sort_no)
-values
-    (1, 1, 'temperature', '温度',     '℃', 'double', 18, 38,    -40, 80,     5, 1),
-    (2, 1, 'humidity',    '空气湿度', '%',  'double', 30, 85,      0, 100,    5, 2),
-    (3, 1, 'soil',        '土壤湿度', '%',  'double', 10, 80,      0, 100,    5, 3),
-    (4, 1, 'light',       '光照',     'lx', 'double',  0, 50000,   0, 200000, 5, 4);
-
--- 8) 自检：应返回 4 租户 / 4 用户 / 3 设备 / 9 测点 / 8 采样 / 1 告警 / 1 服务项 / 4 指标模板
+-- 7) 自检：应返回 4 租户 / 4 用户 / 3 设备 / 9 测点 / 8 采样 / 1 告警
 -- select
 --   (select count(*) from tenant) as tenants,
 --   (select count(*) from user) as users,
 --   (select count(*) from device) as devices,
 --   (select count(*) from point) as points,
 --   (select count(*) from point_value) as values_,
---   (select count(*) from alarm) as alarms,
---   (select count(*) from service_item) as services,
---   (select count(*) from service_metric) as metrics;
+--   (select count(*) from alarm) as alarms;

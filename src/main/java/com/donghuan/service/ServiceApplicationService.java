@@ -1,32 +1,31 @@
 package com.donghuan.service;
 
-import com.donghuan.model.LoginUser;
-import com.donghuan.model.Role;
-import com.donghuan.model.ServiceApplicationCommand;
-import com.donghuan.model.ServiceApplicationView;
-import com.donghuan.model.ServiceItemView;
+import com.donghuan.model.command.RejectCommand;
+import com.donghuan.model.security.LoginUser;
+import com.donghuan.model.enums.Role;
+import com.donghuan.model.command.ServiceApplicationCommand;
+import com.donghuan.model.view.ServiceApplicationView;
 import com.donghuan.store.ServiceApplicationStore;
-import com.donghuan.store.ServiceItemStore;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.List;
-import java.util.Locale;
-import java.util.Set;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
 public class ServiceApplicationService {
 
     private static final Set<String> STATUSES =
-            Set.of("PENDING", "APPROVED", "REJECTED", "PROVISIONED");
+            Set.of("PENDING", "APPROVED", "REJECTED", "INSTALLED");
 
     private final ServiceApplicationStore applicationStore;
-    private final ServiceItemStore serviceItemStore;
+    private static final Set<String> ALLOWED_TYPES =
+            Set.of("temperature", "humidity", "soil", "light");
+    private static final int MAX_POINTS_PER_TYPE = 20;
 
-    // 种植户提交申请：服务必须启用，棚数不能超过服务上限
+    // 种植户提交申请只存需求
     public ServiceApplicationView submit(LoginUser user, ServiceApplicationCommand command) {
         if (user.getRole() != Role.FARMER) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "只有种植户可以申请服务");
@@ -38,28 +37,17 @@ public class ServiceApplicationService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请求不能为空");
         }
 
-        String serviceCode = requireText(command.serviceCode(), "serviceCode", 64);
-        ServiceItemView item = serviceItemStore.findByCode(serviceCode)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "服务项不存在"));
-        if (!item.enabled()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "服务已停用");
+        String greenhouseName = requireText(command.greenhouseName(), "棚名", 128);
+        String applicantName = requireText(command.applicantName(), "申请人", 64);
+        String phone = requireText(command.phone(), "联系电话", 32);
+        if (phone.length() < 6) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "联系电话格式错误");
         }
-
-        int greenhouseCount = command.greenhouseCount() == null ? 0 : command.greenhouseCount();
-        if (greenhouseCount < 1 || greenhouseCount > item.maxGreenhouses()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "申请棚数必须在 1~" + item.maxGreenhouses() + " 之间");
-        }
-
-        String contact = requireText(command.contact(), "contact", 64);
-        String phone = trimToNull(command.phone());
-        if (phone != null && phone.length() > 32) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "phone 不能超过 32 字");
-        }
-
+        List<ServiceApplicationCommand.DemandPoint> points = normalizePoints(command.points());
         ServiceApplicationCommand normalized =
-                new ServiceApplicationCommand(serviceCode, greenhouseCount, contact, phone);
-        long id = applicationStore.insert(item.id(), user.getTenantId(), user.getId(), normalized);
+                new ServiceApplicationCommand(greenhouseName, applicantName, points, phone);
+
+        long id = applicationStore.insert(user.getTenantId(), user.getId(), normalized);
         return find(id);
     }
 
@@ -83,39 +71,39 @@ public class ServiceApplicationService {
         return application;
     }
 
-    // 审批通过：生成开通任务；服务停用或棚数超限时不允许通过
+    // 管理员批准
     public ServiceApplicationView approve(LoginUser user, long id) {
-        ServiceApplicationView application = find(id);
-        if (!"PENDING".equals(application.status())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "申请已处理");
+        if (user.getRole() != Role.ADMIN) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "当前帐号无权限操作");
         }
-
-        ServiceItemView item = serviceItemStore.findByCode(application.serviceCode())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "服务项不存在"));
-        if (!item.enabled()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "服务已停用");
-        }
-        if (application.greenhouseCount() > item.maxGreenhouses()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "申请棚数超过服务上限");
-        }
-
-        long taskId = applicationStore.approveAndCreateTask(id, user.getId());
-        if (taskId == 0) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "申请状态已变化");
+        if (applicationStore.approve(id, user.getId()) == 0) {
+            find(id); // 不存在直接抛 404
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "申请单当前状态不可审批");
         }
         return find(id);
     }
 
-    // 驳回：必须填原因
-    public ServiceApplicationView reject(LoginUser user, long id, String reason) {
-        ServiceApplicationView application = find(id);
-        if (!"PENDING".equals(application.status())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "申请已处理");
+    // 管理员拒绝
+    public ServiceApplicationView reject(LoginUser user, long id, RejectCommand rejectCommand) {
+        if (user.getRole() != Role.ADMIN) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "当前帐号无权限操作");
         }
+        String reason = requireText(rejectCommand.reason(), "驳回理由", 255);
+        if (applicationStore.reject(id, user.getId(), reason) == 0) {
+            find(id);
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "申请单当前状态不可审批");
+        }
+        return find(id);
+    }
 
-        String text = requireText(reason, "驳回原因", 255);
-        if (!applicationStore.reject(id, user.getId(), text)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "申请状态已变化");
+    // 运维安装设备后确认
+    public ServiceApplicationView confirm(LoginUser user, long id) {
+        if (user.getRole() == Role.FARMER) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "当前帐号无权限操作");
+        }
+        if (applicationStore.confirm(id, user.getId()) == 0) {
+            find(id);
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "申请单当前状态不可确认");
         }
         return find(id);
     }
@@ -141,6 +129,38 @@ public class ServiceApplicationService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "status 不合法");
         }
         return value;
+    }
+
+    private List<ServiceApplicationCommand.DemandPoint> normalizePoints(
+            List<ServiceApplicationCommand.DemandPoint> points) {
+        if (points == null || points.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "至少选择一个测点");
+        }
+
+        Set<String> seen = new HashSet<>();
+        List<ServiceApplicationCommand.DemandPoint> result = new ArrayList<>();
+
+        for (ServiceApplicationCommand.DemandPoint point : points) {
+            if (point == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "测点不能为空");
+            }
+
+            String type = requireText(point.type(), "测点类型", 32).toLowerCase(Locale.ROOT);
+            if (!ALLOWED_TYPES.contains(type)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "不支持的测点类型：" + type);
+            }
+            if (point.count() == null || point.count() < 1 || point.count() > MAX_POINTS_PER_TYPE) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "测点数量必须在1~" + MAX_POINTS_PER_TYPE + "之间");
+            }
+            if (!seen.add(type)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "测点类型重复：" + type);
+            }
+
+            result.add(new ServiceApplicationCommand.DemandPoint(type, point.count()));
+        }
+        return result;
     }
 
     private String requireText(String raw, String field, int maxLength) {

@@ -1,7 +1,8 @@
-package com.donghuan.model;
+package com.donghuan.model.view;
 
+import com.donghuan.model.enums.AlarmStatus;
+import com.donghuan.model.enums.LimitType;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 

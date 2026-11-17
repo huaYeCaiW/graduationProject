@@ -2,9 +2,9 @@ package com.donghuan.store;
 
 import com.donghuan.common.DeviceProperties;
 import com.donghuan.common.PointKeys;
-import com.donghuan.model.PointValue;
-import com.donghuan.model.Quality;
-import com.donghuan.model.TenantScope;
+import com.donghuan.model.domain.PointValue;
+import com.donghuan.model.enums.Quality;
+import com.donghuan.model.security.TenantScope;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;

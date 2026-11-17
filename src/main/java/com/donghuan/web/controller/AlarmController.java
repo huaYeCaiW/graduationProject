@@ -1,8 +1,8 @@
 package com.donghuan.web.controller;
 
 import com.donghuan.common.AuthConstants;
-import com.donghuan.model.AlarmValue;
-import com.donghuan.model.LoginUser;
+import com.donghuan.model.view.AlarmValue;
+import com.donghuan.model.security.LoginUser;
 import com.donghuan.service.AlarmService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;

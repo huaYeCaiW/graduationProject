@@ -1,7 +1,7 @@
 package com.donghuan.store;
 
-import com.donghuan.model.PointValue;
-import com.donghuan.model.TenantScope;
+import com.donghuan.model.domain.PointValue;
+import com.donghuan.model.security.TenantScope;
 
 import java.util.Map;
 

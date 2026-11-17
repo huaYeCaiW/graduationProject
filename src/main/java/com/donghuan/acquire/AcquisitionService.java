@@ -3,7 +3,7 @@ package com.donghuan.acquire;
 import com.donghuan.adapter.ProtocolAdapter;
 import com.donghuan.common.DeviceConfig;
 import com.donghuan.common.DeviceProperties;
-import com.donghuan.model.Protocol;
+import com.donghuan.model.enums.Protocol;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;

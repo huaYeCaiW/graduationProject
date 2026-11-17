@@ -1,8 +1,8 @@
 package com.donghuan.pipeline;
 
 import com.donghuan.common.DeviceProperties;
-import com.donghuan.model.LimitType;
-import com.donghuan.model.PointValue;
+import com.donghuan.model.enums.LimitType;
+import com.donghuan.model.domain.PointValue;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;

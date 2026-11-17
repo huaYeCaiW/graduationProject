@@ -1,5 +1,6 @@
-package com.donghuan.model;
+package com.donghuan.model.security;
 
+import com.donghuan.model.enums.Role;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 

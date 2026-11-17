@@ -1,7 +1,7 @@
 package com.donghuan.adapter;
 
 import com.donghuan.common.DeviceConfig;
-import com.donghuan.model.Protocol;
+import com.donghuan.model.enums.Protocol;
 
 public interface ProtocolAdapter {
 

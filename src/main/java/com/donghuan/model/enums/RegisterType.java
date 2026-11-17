@@ -1,4 +1,4 @@
-package com.donghuan.model;
+package com.donghuan.model.enums;
 
 
 import java.util.Locale;
