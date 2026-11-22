@@ -86,6 +86,20 @@ public class AuthInterceptor implements HandlerInterceptor {
                 && path.endsWith("/confirm")) {
             return AuthConstants.PERM_PROVISION_EXECUTE;
         }
+        if ("POST".equals(method) && "/api/work-orders".equals(path)) {
+            return AuthConstants.PERM_WORK_ORDER_SUBMIT;
+        }
+        if ("POST".equals(method) && path.startsWith("/api/work-orders/")) {
+            if (path.endsWith("/accept") || path.endsWith("/complete")) {
+                return AuthConstants.PERM_WORK_ORDER_HANDLE;
+            }
+            if (path.endsWith("/confirm")) {
+                return AuthConstants.PERM_WORK_ORDER_CONFIRM;
+            }
+            if (path.endsWith("/cancel")) {
+                return AuthConstants.PERM_WORK_ORDER_CANCEL;
+            }
+        }
         return null;
     }
 
@@ -100,6 +114,10 @@ public class AuthInterceptor implements HandlerInterceptor {
             case AuthConstants.PERM_APPLICATION_SUBMIT -> role == Role.FARMER;
             case AuthConstants.PERM_APPLICATION_REVIEW -> role == Role.ADMIN;
             case AuthConstants.PERM_PROVISION_EXECUTE -> role == Role.OPS || role == Role.ADMIN;
+            case AuthConstants.PERM_WORK_ORDER_SUBMIT -> role == Role.FARMER;
+            case AuthConstants.PERM_WORK_ORDER_HANDLE -> role == Role.OPS;
+            case AuthConstants.PERM_WORK_ORDER_CONFIRM -> role == Role.FARMER;
+            case AuthConstants.PERM_WORK_ORDER_CANCEL -> role == Role.FARMER || role == Role.ADMIN;
             default -> false;
         };
     }

@@ -3,304 +3,358 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>管理端 - 东环合作社</title>
+    <title>社务台账 · 东环合作社</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/css/common.css">
+    <link rel="stylesheet" href="/css/theme.css">
+    <link rel="stylesheet" href="/css/pages/admin.css">
 </head>
-<body>
+<body class="theme-dark">
 <div id="app" v-cloak>
-    <header class="topbar">
-        <div class="brand"><span class="brand-dot"></span>东环合作社 · 管理端</div>
-        <div class="topbar-right">
+    <div class="page">
+        <header class="masthead">
+            <div class="brand">
+                <div class="seal">管</div>
+                <div>
+                    <div class="brand-name">东环合作社</div>
+                    <span class="brand-en">ADMIN LEDGER · 社务台账</span>
+                </div>
+            </div>
+
             <nav class="nav">
                 <a v-for="item in navItems" :key="item.href" class="nav-link"
                    :class="{ active: item.href === '/admin.html' }" :href="item.href">{{ item.label }}</a>
             </nav>
-            <span v-if="user">{{ user.username }}（{{ roleLabel }}）</span>
-            <button class="btn btn-sm" @click="logout">退出登录</button>
-        </div>
-    </header>
 
-    <main class="page">
-        <div class="tabs">
-            <button class="tab" v-for="t in tabs" :key="t.key" :class="{ active: tab === t.key }"
-                    @click="switchTab(t.key)">{{ t.label }}</button>
-        </div>
-
-        <!-- 申请审批 -->
-        <section v-show="tab === 'applications'">
-            <div class="toolbar">
-                <select v-model="appStatus" style="width: 160px" @change="loadApplications">
-                    <option value="">全部状态</option>
-                    <option value="PENDING">待审批</option>
-                    <option value="APPROVED">已通过</option>
-                    <option value="REJECTED">已驳回</option>
-                    <option value="INSTALLED">已开通</option>
-                </select>
-                <button class="btn" @click="loadApplications">刷新</button>
-                <span class="hint" style="margin-left: auto">种植户需求由运维在开通时按现场设备配置</span>
-            </div>
-            <div class="card">
-                <div class="table-wrap">
-                    <table>
-                        <thead>
-                        <tr>
-                            <th>申请单号</th>
-                            <th>租户</th>
-                            <th>大棚</th>
-                            <th>申请人</th>
-                            <th>联系电话</th>
-                            <th>需求</th>
-                            <th>状态</th>
-                            <th>申请时间</th>
-                            <th>操作</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        <tr v-for="a in applications" :key="a.id">
-                            <td class="code">{{ a.applicationNo }}</td>
-                            <td>{{ a.tenantName }}</td>
-                            <td>{{ a.greenhouseName }}</td>
-                            <td>{{ a.applicantName }}</td>
-                            <td>{{ a.phone }}</td>
-                            <td>
-                                <span class="tag" v-for="p in a.points" :key="p.type">
-                                    {{ pointTypeLabel(p.type) }} × {{ p.count }}
-                                </span>
-                            </td>
-                            <td>
-                                <span class="badge" :class="appBadgeClass(a.status)">{{ appStatusLabel(a.status) }}</span>
-                                <div v-if="a.rejectReason" class="muted" style="font-size: 12px; margin-top: 2px">
-                                    {{ a.rejectReason }}
-                                </div>
-                            </td>
-                            <td class="muted">{{ fmtTime(a.createdAt) }}</td>
-                            <td>
-                                <div v-if="a.status === 'PENDING'" style="display: flex; gap: 6px">
-                                    <button class="btn btn-sm btn-primary" :disabled="actingId === a.id"
-                                            @click="approveApplication(a)">通过</button>
-                                    <button class="btn btn-sm btn-danger" :disabled="actingId === a.id"
-                                            @click="rejectApplication(a)">驳回</button>
-                                </div>
-                                <span v-else class="muted">-</span>
-                            </td>
-                        </tr>
-                        <tr v-if="!applications.length">
-                            <td colspan="9" class="empty">暂无申请</td>
-                        </tr>
-                        </tbody>
-                    </table>
+            <div class="who">
+                <div class="who-text">
+                    <b>{{ user ? user.username : '—' }}</b>
+                    <span>{{ roleLabel }}</span>
                 </div>
+                <button class="quit" @click="logout">退出登录</button>
             </div>
-        </section>
+        </header>
 
-        <!-- 数据概览 -->
-        <section v-show="tab === 'overview'">
-            <div class="stat-grid">
-                <div class="stat-card"><div class="stat-value">{{ devices.length }}</div><div class="stat-label">启用设备</div></div>
-                <div class="stat-card"><div class="stat-value">{{ pointCount }}</div><div class="stat-label">测点总数</div></div>
-                <div class="stat-card"><div class="stat-value">{{ activeAlarms.length }}</div><div class="stat-label">活动告警</div></div>
-                <div class="stat-card"><div class="stat-value">{{ pendingApplications.length }}</div><div class="stat-label">待审批申请</div></div>
+        <main>
+            <section class="lede">
+                <div>
+                    <div class="kicker">DAILY LEDGER · 社务总览</div>
+                    <h1>今日社务</h1>
+                    <p class="lede-sub">
+                        {{ todayText }} · 待审批 <b>{{ pendingApplications.length }}</b> 件，
+                        活动告警 <b>{{ activeAlarms.length }}</b> 条
+                    </p>
+                </div>
+                <div class="ledger-stats">
+                    <div class="ledger-stat">
+                        <b :class="{ hot: pendingApplications.length > 0 }">{{ pendingApplications.length }}</b>
+                        <i>待审批</i>
+                    </div>
+                    <div class="ledger-stat">
+                        <b>{{ inProgressCount }}</b>
+                        <i>处理中</i>
+                    </div>
+                    <div class="ledger-stat">
+                        <b>{{ waitingAcceptCount }}</b>
+                        <i>待验收</i>
+                    </div>
+                    <div class="ledger-stat">
+                        <b :class="{ hot: activeAlarms.length > 0 }">{{ activeAlarms.length }}</b>
+                        <i>活动告警</i>
+                    </div>
+                </div>
+            </section>
+
+            <div class="tabs">
+                <button class="tab" v-for="(t, i) in tabs" :key="t.key" :class="{ active: tab === t.key }"
+                        @click="switchTab(t.key)">
+                    <em>{{ String(i + 1).padStart(2, '0') }}</em>{{ t.label }}
+                </button>
             </div>
-            <div class="split-2">
-                <section class="card">
-                    <div class="card-head">
-                        <span class="card-title">最近活动告警（{{ activeAlarms.length }}）</span>
-                        <button class="btn btn-sm" @click="loadOverview">刷新</button>
+
+            <!-- 申请审批 -->
+            <section v-show="tab === 'applications'">
+                <div class="toolbar">
+                    <select v-model="appStatus" @change="loadApplications">
+                        <option value="">全部状态</option>
+                        <option value="PENDING">待审批</option>
+                        <option value="APPROVED">已通过</option>
+                        <option value="REJECTED">已驳回</option>
+                        <option value="INSTALLED">已开通</option>
+                    </select>
+                    <button class="btn btn-sm" @click="loadApplications">刷新</button>
+                    <span class="hint push">通过后由运维按现场设备配置开通</span>
+                </div>
+
+                <div class="sheet">
+                    <div class="sheet-head">
+                        <span class="sheet-title">服务申请<span>APPLICATIONS</span></span>
+                        <span class="hint">共 {{ applications.length }} 条</span>
                     </div>
                     <div class="table-wrap">
-                        <table>
+                        <table class="table-wide">
                             <thead>
-                            <tr><th>ID</th><th>测点</th><th>类型</th><th>值 / 阈值</th><th>时间</th></tr>
+                            <tr>
+                                <th>申请单号</th>
+                                <th>租户 / 大棚</th>
+                                <th>申请人</th>
+                                <th>需求</th>
+                                <th>状态</th>
+                                <th>申请时间</th>
+                                <th>操作</th>
+                            </tr>
                             </thead>
                             <tbody>
-                            <tr v-for="a in activeAlarms.slice(0, 10)" :key="a.id">
-                                <td class="code">#{{ a.id }}</td>
-                                <td class="code">#{{ a.pointId }}</td>
-                                <td>{{ a.limitType === 'MAX' ? '上限' : '下限' }}</td>
-                                <td>{{ a.value }} / {{ a.threshold }}</td>
-                                <td class="muted">{{ fmtTime(a.sampleAt) }}</td>
-                            </tr>
-                            <tr v-if="!activeAlarms.length">
-                                <td colspan="5" class="empty">暂无活动告警</td>
-                            </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-                <section class="card">
-                    <div class="card-head">
-                        <span class="card-title">待审批申请</span>
-                        <a class="link" @click="switchTab('applications')">查看全部</a>
-                    </div>
-                    <div class="table-wrap">
-                        <table>
-                            <thead>
-                            <tr><th>申请单号</th><th>租户</th><th>大棚</th></tr>
-                            </thead>
-                            <tbody>
-                            <tr v-for="a in pendingApplications.slice(0, 5)" :key="a.id">
+                            <tr v-for="a in applications" :key="a.id">
                                 <td class="code">{{ a.applicationNo }}</td>
-                                <td>{{ a.tenantName }}</td>
-                                <td>{{ a.greenhouseName }}</td>
+                                <td>
+                                    <div class="cell-main">{{ a.tenantName }}</div>
+                                    <div class="cell-sub">{{ a.greenhouseName }}</div>
+                                </td>
+                                <td>
+                                    <div class="cell-main">{{ a.applicantName }}</div>
+                                    <div class="cell-sub code">{{ a.phone }}</div>
+                                </td>
+                                <td>
+                                    <span class="req" v-for="p in a.points" :key="p.type">
+                                        {{ pointTypeLabel(p.type) }} × {{ p.count }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="stamp" :class="appBadgeClass(a.status)">{{ appStatusLabel(a.status) }}</span>
+                                    <div v-if="a.rejectReason" class="stamp-note">{{ a.rejectReason }}</div>
+                                </td>
+                                <td class="muted code">{{ fmtTime(a.createdAt) }}</td>
+                                <td>
+                                    <div v-if="a.status === 'PENDING'" class="row-actions">
+                                        <button class="btn btn-sm btn-primary" @click="openDialog('approve', a)">通过</button>
+                                        <button class="btn btn-sm btn-danger" @click="openDialog('reject', a)">驳回</button>
+                                    </div>
+                                    <span v-else class="muted">—</span>
+                                </td>
                             </tr>
-                            <tr v-if="!pendingApplications.length">
-                                <td colspan="3" class="empty">暂无待审批申请</td>
+                            <tr v-if="loading.applications && !applications.length">
+                                <td colspan="7" class="empty pulse">正在调取申请台账…</td>
+                            </tr>
+                            <tr v-else-if="!applications.length">
+                                <td colspan="7">
+                                    <div class="empty">
+                                        <span class="void-mark">空</span>
+                                        暂无申请
+                                    </div>
+                                </td>
                             </tr>
                             </tbody>
                         </table>
                     </div>
-                </section>
+                </div>
+            </section>
+
+            <!-- 工单管理 -->
+            <section v-show="tab === 'workOrders'">
+                <div class="toolbar">
+                    <select v-model="orderStatus" @change="loadWorkOrders">
+                        <option value="">全部状态</option>
+                        <option value="PENDING">待受理</option>
+                        <option value="IN_PROGRESS">处理中</option>
+                        <option value="WAITING_ACCEPT">待验收</option>
+                        <option value="DONE">已完成</option>
+                        <option value="CANCELLED">已取消</option>
+                    </select>
+                    <button class="btn btn-sm" @click="loadWorkOrders">刷新</button>
+                    <span class="hint push">接单与完工由运维操作；管理员可取消待受理或处理中的工单</span>
+                </div>
+
+                <div class="sheet">
+                    <div class="sheet-head">
+                        <span class="sheet-title">维修工单<span>WORK ORDERS</span></span>
+                        <span class="hint">共 {{ workOrders.length }} 条</span>
+                    </div>
+                    <div class="table-wrap">
+                        <table class="table-wide">
+                            <thead>
+                            <tr>
+                                <th>工单号</th>
+                                <th>租户 / 大棚</th>
+                                <th>申请人</th>
+                                <th>问题描述</th>
+                                <th>状态</th>
+                                <th>提交时间</th>
+                                <th>操作</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr v-for="o in workOrders" :key="o.id">
+                                <td class="code">{{ o.orderNo }}</td>
+                                <td>
+                                    <div class="cell-main">{{ o.tenantName }}</div>
+                                    <div class="cell-sub">{{ o.greenhouseName }}</div>
+                                </td>
+                                <td>
+                                    <div class="cell-main">{{ o.applicantName }}</div>
+                                    <div class="cell-sub code">{{ o.phone }}</div>
+                                </td>
+                                <td><div class="desc">{{ o.description }}</div></td>
+                                <td>
+                                    <span class="stamp" :class="orderBadgeClass(o.status)">{{ orderStatusLabel(o.status) }}</span>
+                                    <div v-if="o.cancelReason" class="stamp-note">{{ o.cancelReason }}</div>
+                                </td>
+                                <td class="muted code">{{ fmtTime(o.createdAt) }}</td>
+                                <td>
+                                    <button v-if="o.status === 'PENDING' || o.status === 'IN_PROGRESS'"
+                                            class="btn btn-sm btn-danger"
+                                            @click="openDialog('cancel', o)">取消</button>
+                                    <span v-else class="muted">—</span>
+                                </td>
+                            </tr>
+                            <tr v-if="loading.workOrders && !workOrders.length">
+                                <td colspan="7" class="empty pulse">正在调取工单台账…</td>
+                            </tr>
+                            <tr v-else-if="!workOrders.length">
+                                <td colspan="7">
+                                    <div class="empty">
+                                        <span class="void-mark">空</span>
+                                        暂无工单
+                                    </div>
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 数据概览 -->
+            <section v-show="tab === 'overview'">
+                <div class="board">
+                    <div class="board-item">
+                        <div class="num">{{ devices.length }}</div>
+                        <div class="lb">启用设备 / DEVICES</div>
+                    </div>
+                    <div class="board-item">
+                        <div class="num">{{ pointCount }}</div>
+                        <div class="lb">测点总数 / POINTS</div>
+                    </div>
+                    <div class="board-item" :class="{ accent: activeAlarms.length > 0 }">
+                        <div class="num">{{ activeAlarms.length }}</div>
+                        <div class="lb">活动告警 / ALARMS</div>
+                    </div>
+                    <div class="board-item" :class="{ accent: pendingApplications.length > 0 }">
+                        <div class="num">{{ pendingApplications.length }}</div>
+                        <div class="lb">待审批申请 / REVIEWS</div>
+                    </div>
+                </div>
+
+                <div class="split">
+                    <div class="sheet">
+                        <div class="sheet-head">
+                            <span class="sheet-title">活动告警<span>ACTIVE ALARMS</span></span>
+                            <div class="row-actions">
+                                <span class="hint">共 {{ activeAlarms.length }} 条</span>
+                                <button class="btn btn-sm" @click="loadOverview">刷新</button>
+                            </div>
+                        </div>
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
+                                <tr><th>ID</th><th>测点</th><th>类型</th><th>值 / 阈值</th><th>时间</th></tr>
+                                </thead>
+                                <tbody>
+                                <tr v-for="a in activeAlarms.slice(0, 10)" :key="a.id">
+                                    <td class="code">#{{ a.id }}</td>
+                                    <td class="code">#{{ a.pointId }}</td>
+                                    <td>{{ a.limitType === 'MAX' ? '上限' : '下限' }}</td>
+                                    <td class="code">{{ a.value }} / {{ a.threshold }}</td>
+                                    <td class="muted code">{{ fmtTime(a.sampleAt) }}</td>
+                                </tr>
+                                <tr v-if="loading.overview && !activeAlarms.length">
+                                    <td colspan="5" class="empty pulse">正在调取告警…</td>
+                                </tr>
+                                <tr v-else-if="!activeAlarms.length">
+                                    <td colspan="5">
+                                        <div class="empty">
+                                            <span class="void-mark">安</span>
+                                            暂无活动告警
+                                        </div>
+                                    </td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="sheet">
+                        <div class="sheet-head">
+                            <span class="sheet-title">待审批申请<span>PENDING</span></span>
+                            <a class="hint" style="cursor: pointer; text-decoration: underline" @click="switchTab('applications')">查看全部</a>
+                        </div>
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
+                                <tr><th>申请单号</th><th>租户 / 大棚</th></tr>
+                                </thead>
+                                <tbody>
+                                <tr v-for="a in pendingApplications.slice(0, 6)" :key="a.id">
+                                    <td class="code">{{ a.applicationNo }}</td>
+                                    <td>
+                                        <div class="cell-main">{{ a.tenantName }}</div>
+                                        <div class="cell-sub">{{ a.greenhouseName }}</div>
+                                    </td>
+                                </tr>
+                                <tr v-if="loading.overview && !pendingApplications.length">
+                                    <td colspan="2" class="empty pulse">正在调取申请…</td>
+                                </tr>
+                                <tr v-else-if="!pendingApplications.length">
+                                    <td colspan="2">
+                                        <div class="empty">
+                                            <span class="void-mark">清</span>
+                                            暂无待审批申请
+                                        </div>
+                                    </td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <footer class="foot">
+                <span>东环合作社 · 社务台账</span>
+                <span>{{ todayText }}</span>
+            </footer>
+        </main>
+    </div>
+
+    <!-- 操作确认 -->
+    <div class="veil" v-if="dialog" @click.self="closeDialog">
+        <div class="dialog" role="dialog" aria-modal="true">
+            <div class="dialog-kicker">{{ dialogKicker }}</div>
+            <h3>{{ dialogTitle }}</h3>
+            <p class="dialog-text">{{ dialogText }}</p>
+
+            <template v-if="dialog.type !== 'approve'">
+                <label class="field-label">{{ dialog.type === 'reject' ? '驳回原因' : '取消原因' }}</label>
+                <textarea v-model="reason" maxlength="255" :placeholder="dialog.type === 'reject' ? '说明驳回原因，便于申请人修改后重新提交' : '说明取消原因，将记录在工单里'"></textarea>
+                <div class="field-meta">
+                    <span class="field-error">{{ dialogError }}</span>
+                    <span>{{ reason.length }} / 255</span>
+                </div>
+            </template>
+
+            <div class="dialog-actions">
+                <button class="btn" :disabled="dialogBusy" @click="closeDialog">再想想</button>
+                <button class="btn" :class="dialog.type === 'approve' ? 'btn-primary' : 'btn-danger'"
+                        :disabled="dialogBusy" @click="confirmDialog">
+                    {{ dialogBusy ? '提交中…' : dialogConfirmText }}
+                </button>
             </div>
-        </section>
-    </main>
+        </div>
+    </div>
 </div>
 
 <script src="/js/vue.global.prod.js"></script>
 <script src="/js/api.js"></script>
-<script>
-    const { createApp } = Vue;
-
-    createApp({
-        data() {
-            return {
-                user: null,
-                tab: 'applications',
-                tabs: [
-                    { key: 'applications', label: '申请审批' },
-                    { key: 'overview', label: '数据概览' }
-                ],
-                applications: [],
-                appStatus: '',
-                actingId: '',
-                devices: [],
-                activeAlarms: [],
-                overviewApplications: [],
-                pollTimer: null
-            };
-        },
-        computed: {
-            roleLabel() {
-                return this.user ? roleText(this.user.role) : '';
-            },
-            navItems() {
-                if (!this.user) return [];
-                return [
-                    { label: '管理端', href: '/admin.html' },
-                    { label: '设备管理', href: '/devices.html' },
-                    { label: '实时监测', href: '/monitor.html' }
-                ];
-            },
-            pointCount() {
-                return this.devices.reduce((sum, d) => sum + (d.points || []).length, 0);
-            },
-            pendingApplications() {
-                return this.overviewApplications.filter(a => a.status === 'PENDING');
-            }
-        },
-        mounted() {
-            this.init();
-            this.pollTimer = setInterval(() => {
-                if (this.tab === 'applications') this.loadApplications();
-                else if (this.tab === 'overview') this.loadOverview();
-            }, 3000);
-        },
-        beforeUnmount() {
-            clearInterval(this.pollTimer);
-        },
-        methods: {
-            async init() {
-                try {
-                    this.user = await API.get('/api/auth/me');
-                    await Promise.all([this.loadApplications(), this.loadOverview()]);
-                } catch (e) {
-                    // 401 已由 API 封装跳转
-                }
-            },
-            switchTab(key) {
-                this.tab = key;
-                if (key === 'applications') this.loadApplications();
-                else if (key === 'overview') this.loadOverview();
-            },
-            async loadApplications() {
-                try {
-                    const url = '/api/service-applications' +
-                        (this.appStatus ? '?status=' + encodeURIComponent(this.appStatus) : '');
-                    this.applications = await API.get(url) || [];
-                } catch (e) {
-                    showToast(e.message, 'error');
-                }
-            },
-            async loadOverview() {
-                try {
-                    const [devices, alarms, applications] = await Promise.all([
-                        API.get('/api/devices'),
-                        API.get('/api/alarms/active'),
-                        API.get('/api/service-applications')
-                    ]);
-                    this.devices = devices || [];
-                    this.activeAlarms = alarms || [];
-                    this.overviewApplications = applications || [];
-                } catch (e) {
-                    showToast(e.message, 'error');
-                }
-            },
-            async approveApplication(a) {
-                if (!window.confirm('通过 ' + a.applicationNo + ' 的申请？')) return;
-                this.actingId = a.id;
-                try {
-                    await API.post('/api/service-applications/' + a.id + '/approve', {});
-                    showToast('申请已通过', 'success');
-                    await this.loadApplications();
-                } catch (e) {
-                    showToast(e.message, 'error');
-                } finally {
-                    this.actingId = '';
-                }
-            },
-            async rejectApplication(a) {
-                const reason = window.prompt('请输入驳回原因（不超过 255 字）', '');
-                if (reason === null) return;
-                if (!reason.trim()) {
-                    showToast('驳回原因不能为空', 'error');
-                    return;
-                }
-                this.actingId = a.id;
-                try {
-                    await API.post('/api/service-applications/' + a.id + '/reject', { reason: reason.trim() });
-                    showToast('申请已驳回', 'success');
-                    await this.loadApplications();
-                } catch (e) {
-                    showToast(e.message, 'error');
-                } finally {
-                    this.actingId = '';
-                }
-            },
-            pointTypeLabel(type) {
-                return { temperature: '温度', humidity: '湿度', soil: '土壤', light: '光照' }[type] || type;
-            },
-            appStatusLabel(status) {
-                return { PENDING: '待审批', APPROVED: '已通过', REJECTED: '已驳回', INSTALLED: '已开通' }[status] || status;
-            },
-            appBadgeClass(status) {
-                return { PENDING: 'badge-warn', REJECTED: 'badge-danger' }[status] || '';
-            },
-            fmtTime(value) {
-                if (!value) return '-';
-                const d = new Date(value);
-                const pad = n => String(n).padStart(2, '0');
-                return pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' +
-                    pad(d.getHours()) + ':' + pad(d.getMinutes());
-            },
-            async logout() {
-                try {
-                    await API.post('/api/auth/logout', {});
-                } catch (e) {
-                    // 忽略，统一回登录页
-                }
-                location.href = '/login.html';
-            }
-        }
-    }).mount('#app');
-</script>
+<script src="/js/pages/admin.js"></script>
 </body>
 </html>

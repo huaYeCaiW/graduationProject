@@ -27,6 +27,12 @@ public class MqttProtocolAdapter implements ProtocolAdapter {
     @Value("${mqtt.broker:tcp://localhost:1883}")
     private String broker;
 
+    @Value("${mqtt.username:}")
+    private String username;
+
+    @Value("${mqtt.password:}")
+    private String password;
+
     public MqttProtocolAdapter(MessageStream messageStream) {
         this.messageStream = messageStream;
     }
@@ -119,6 +125,10 @@ public class MqttProtocolAdapter implements ProtocolAdapter {
             options.setCleanSession(true);
             options.setConnectionTimeout(10);
             options.setKeepAliveInterval(60);
+            if (username != null && !username.isBlank()) {
+                options.setUserName(username);
+                options.setPassword(password == null ? new char[0] : password.toCharArray());
+            }
 
             // 连broker
             bound.connect(options);

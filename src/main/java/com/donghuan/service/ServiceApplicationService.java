@@ -1,5 +1,6 @@
 package com.donghuan.service;
 
+import com.donghuan.common.Texts;
 import com.donghuan.model.command.RejectCommand;
 import com.donghuan.model.security.LoginUser;
 import com.donghuan.model.enums.Role;
@@ -37,9 +38,9 @@ public class ServiceApplicationService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请求不能为空");
         }
 
-        String greenhouseName = requireText(command.greenhouseName(), "棚名", 128);
-        String applicantName = requireText(command.applicantName(), "申请人", 64);
-        String phone = requireText(command.phone(), "联系电话", 32);
+        String greenhouseName = Texts.require(command.greenhouseName(), "棚名", 128);
+        String applicantName = Texts.require(command.applicantName(), "申请人", 64);
+        String phone = Texts.require(command.phone(), "联系电话", 32);
         if (phone.length() < 6) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "联系电话格式错误");
         }
@@ -88,7 +89,7 @@ public class ServiceApplicationService {
         if (user.getRole() != Role.ADMIN) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "当前帐号无权限操作");
         }
-        String reason = requireText(rejectCommand.reason(), "驳回理由", 255);
+        String reason = Texts.require(rejectCommand.reason(), "驳回理由", 255);
         if (applicationStore.reject(id, user.getId(), reason) == 0) {
             find(id);
             throw new ResponseStatusException(HttpStatus.CONFLICT, "申请单当前状态不可审批");
@@ -120,7 +121,7 @@ public class ServiceApplicationService {
     }
 
     private String normalizeStatus(String status) {
-        String value = trimToNull(status);
+        String value = Texts.trimToNull(status);
         if (value == null) {
             return null;
         }
@@ -145,7 +146,7 @@ public class ServiceApplicationService {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "测点不能为空");
             }
 
-            String type = requireText(point.type(), "测点类型", 32).toLowerCase(Locale.ROOT);
+            String type = Texts.require(point.type(), "测点类型", 32).toLowerCase(Locale.ROOT);
             if (!ALLOWED_TYPES.contains(type)) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                         "不支持的测点类型：" + type);
@@ -161,24 +162,5 @@ public class ServiceApplicationService {
             result.add(new ServiceApplicationCommand.DemandPoint(type, point.count()));
         }
         return result;
-    }
-
-    private String requireText(String raw, String field, int maxLength) {
-        if (raw == null || raw.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, field + " 不能为空");
-        }
-        String value = raw.trim();
-        if (value.length() > maxLength) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    field + " 不能超过 " + maxLength + " 字");
-        }
-        return value;
-    }
-
-    private String trimToNull(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return null;
-        }
-        return raw.trim();
     }
 }

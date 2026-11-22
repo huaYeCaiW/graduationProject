@@ -14,6 +14,10 @@ public final class AuthConstants {
     public static final String PERM_APPLICATION_SUBMIT = "application:submit";
     public static final String PERM_APPLICATION_REVIEW = "application:review";
     public static final String PERM_PROVISION_EXECUTE  = "provision:execute";
+    public static final String PERM_WORK_ORDER_SUBMIT = "workorder:submit";
+    public static final String PERM_WORK_ORDER_HANDLE = "workorder:handle";
+    public static final String PERM_WORK_ORDER_CONFIRM = "workorder:confirm";
+    public static final String PERM_WORK_ORDER_CANCEL = "workorder:cancel";
 
     private AuthConstants() {
     }

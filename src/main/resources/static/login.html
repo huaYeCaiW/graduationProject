@@ -3,74 +3,75 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>登录 - 东环合作社</title>
+    <title>登录 · 东环合作社</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/css/common.css">
+    <link rel="stylesheet" href="/css/theme.css">
+    <link rel="stylesheet" href="/css/pages/login.css">
 </head>
-<body>
-<div id="app" v-cloak class="login-wrap">
-    <div class="login-card">
-        <div class="login-title">东环合作社</div>
-        <div class="login-sub">农业大棚监测与合作社服务平台</div>
-
-        <div class="form-item" style="margin-bottom: 12px">
-            <label>用户名</label>
-            <input v-model.trim="username" autocomplete="username" placeholder="请输入用户名" @keyup.enter="login">
-        </div>
-        <div class="form-item">
-            <label>密码</label>
-            <input type="password" v-model="password" autocomplete="current-password" placeholder="请输入密码" @keyup.enter="login">
+<body class="theme-dark">
+<div id="app" v-cloak class="gate">
+    <aside class="side">
+        <div class="side-top">
+            <div class="seal">合</div>
+            <div>
+                <div class="brand-name">东环合作社</div>
+                <span class="brand-en">EAST RING COOPERATIVE</span>
+            </div>
         </div>
 
-        <div class="login-error">{{ error }}</div>
+        <div class="side-mid">
+            <div class="kicker">GREENHOUSE · DATA · SERVICE</div>
+            <h1>让每一棚<br>都有<em>据</em>可依</h1>
+            <p class="side-lead">土壤、空气、设备与工单，统一在一处。看数据、报故障、办申请，各按各的身份进入。</p>
 
-        <button class="btn btn-primary" style="width: 100%" :disabled="loading" @click="login">
-            {{ loading ? '登录中...' : '登录' }}
-        </button>
-    </div>
+            <ul class="roles">
+                <li>
+                    <em>01</em>
+                    <div><b>种植户</b><span>看今日田情，提交报修与服务申请</span></div>
+                </li>
+                <li>
+                    <em>02</em>
+                    <div><b>运维</b><span>盯实时数据，接单处理与上门安装</span></div>
+                </li>
+                <li>
+                    <em>03</em>
+                    <div><b>管理员</b><span>审批申请，管理设备与工单台账</span></div>
+                </li>
+            </ul>
+        </div>
+
+        <div class="side-foot">东环合作社 · 农业大棚监测与合作社服务平台</div>
+    </aside>
+
+    <main class="form-side">
+        <div class="form-card">
+            <div class="kicker">SIGN IN · 入社</div>
+            <h2>登录</h2>
+
+            <div class="field">
+                <label>用户名</label>
+                <input v-model.trim="username" autocomplete="username" placeholder="请输入用户名" @keyup.enter="login">
+            </div>
+
+            <div class="field">
+                <label>密码</label>
+                <input type="password" v-model="password" autocomplete="current-password" placeholder="请输入密码" @keyup.enter="login">
+            </div>
+
+            <div class="error">{{ error }}</div>
+
+            <button class="submit" :disabled="loading" @click="login">
+                {{ loading ? '正在进入…' : '进入合作社' }}
+            </button>
+
+            <p class="form-foot">账号由管理员统一分配<br>忘记密码请联系运维</p>
+        </div>
+    </main>
 </div>
 
 <script src="/js/vue.global.prod.js"></script>
 <script src="/js/api.js"></script>
-<script>
-    const { createApp } = Vue;
-
-    createApp({
-        data() {
-            return {
-                username: '',
-                password: '',
-                error: '',
-                loading: false
-            };
-        },
-        mounted() {
-            // 已登录直接进对应角色工作台
-            API.get('/api/auth/me')
-                .then(user => location.href = homeForRole(user.role))
-                .catch(() => {});
-        },
-        methods: {
-            async login() {
-                this.error = '';
-                if (!this.username || !this.password) {
-                    this.error = '请输入用户名和密码';
-                    return;
-                }
-                this.loading = true;
-                try {
-                    const user = await API.post('/api/auth/login', {
-                        username: this.username,
-                        password: this.password
-                    });
-                    location.href = homeForRole(user.role);
-                } catch (e) {
-                    this.error = e.message;
-                } finally {
-                    this.loading = false;
-                }
-            }
-        }
-    }).mount('#app');
-</script>
+<script src="/js/pages/login.js"></script>
 </body>
 </html>

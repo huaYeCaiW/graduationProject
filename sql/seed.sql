@@ -32,7 +32,7 @@ insert ignore into device (id, device_code, tenant_id, name, protocol, connectio
 values
     (1, 'th-01', 3, '一号大棚温湿度传感器', 'mqtt', 'donghuan/th/01', 1),
     (2, 'th-02', 4, '二号大棚温湿度传感器', 'mqtt', 'donghuan/th/02', 1),
-    (3, 'mb-01', 3, '一号大棚 Modbus 环境控制器', 'modbus', '127.0.0.1:5020:1', 1);
+    (3, 'mb-01', 3, '二号大棚 Modbus 环境控制器', 'modbus', '127.0.0.1:5020:1', 1);
 
 -- 4) 测点：MQTT 的 address 为 JSON 路径；Modbus 的 address 为 寄存器类型:地址:数据类型[:缩放]
 --    Modbus 的 time_address 为空，采样时间取采集时间

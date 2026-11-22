@@ -34,3 +34,6 @@ build/
 
 ### Paho 文件持久化 ###
 donghuan_java_*
+
+### 部署密钥 ###
+.env

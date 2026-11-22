@@ -1,5 +1,5 @@
 -- 农业大棚监测与合作社服务平台 建表脚本
--- 版本：v4.3  日期：2026-11-15
+-- 版本：v4.4  日期：2026-11-20
 -- 变更：新增 tenant 表；user / device 增加 tenant_id（阶段 1 租户化）；
 --       point.address 兼容 Modbus 寄存器串（阶段 7）；
 --       申请单改为只记录种植户需求（大棚名、申请人、电话、测点类型与数量），
@@ -125,6 +125,41 @@ create table application_point (
                                    created_at datetime(3) not null default current_timestamp(3),
                                    key idx_application_point_application (application_id),
                                    constraint fk_application_point_application foreign key (application_id) references service_application (id)
+) engine=innodb default charset=utf8mb4 collate=utf8mb4_0900_ai_ci;
+
+-- 运维工单：种植户报修 → 运维接单 → 完工 → 种植户验收
+-- 状态：PENDING / IN_PROGRESS / WAITING_ACCEPT / DONE / CANCELLED
+-- 接单只记录归属，完工不限接单人；取消原因对管理员必填
+create table work_order (
+                            id bigint auto_increment primary key,
+                            order_no varchar(32) not null,
+                            tenant_id bigint not null,
+                            applicant_id bigint not null,
+                            applicant_name varchar(64) not null,
+                            greenhouse_name varchar(128) not null,
+                            phone varchar(32) not null,
+                            description varchar(500) not null,
+                            status varchar(16) not null default 'PENDING',
+                            accepted_by bigint null,
+                            accepted_at datetime(3) null,
+                            completed_by bigint null,
+                            completed_at datetime(3) null,
+                            complete_note varchar(255) null,
+                            confirmed_at datetime(3) null,
+                            cancelled_by bigint null,
+                            cancelled_at datetime(3) null,
+                            cancel_reason varchar(255) null,
+                            created_at datetime(3) not null default current_timestamp(3),
+                            updated_at datetime(3) not null default current_timestamp(3) on update current_timestamp(3),
+                            unique key uk_work_order_no (order_no),
+                            key idx_work_order_tenant (tenant_id),
+                            key idx_work_order_applicant (applicant_id),
+                            key idx_work_order_status (status),
+                            constraint fk_work_order_tenant foreign key (tenant_id) references tenant (id),
+                            constraint fk_work_order_user foreign key (applicant_id) references user (id),
+                            constraint fk_work_order_acceptor foreign key (accepted_by) references user (id),
+                            constraint fk_work_order_completer foreign key (completed_by) references user (id),
+                            constraint fk_work_order_canceller foreign key (cancelled_by) references user (id)
 ) engine=innodb default charset=utf8mb4 collate=utf8mb4_0900_ai_ci;
 
 -- 采样数据表：sample_at 为设备采样时间，sys_ts 为落库时间

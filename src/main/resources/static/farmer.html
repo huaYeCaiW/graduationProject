@@ -3,376 +3,279 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>种植户端 - 东环合作社</title>
+    <title>今日田情 · 东环合作社</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/css/common.css">
+    <link rel="stylesheet" href="/css/theme.css">
+    <link rel="stylesheet" href="/css/pages/farmer.css">
 </head>
-<body>
-<div id="app" v-cloak>
-    <header class="topbar">
-        <div class="brand"><span class="brand-dot"></span>东环合作社 · 种植户端</div>
-        <div class="topbar-right">
-            <nav class="nav">
-                <a v-for="item in navItems" :key="item.href" class="nav-link"
-                   :class="{ active: item.href === '/farmer.html' }" :href="item.href">{{ item.label }}</a>
-            </nav>
-            <span v-if="user">{{ user.username }}（{{ roleLabel }}）</span>
-            <button class="btn btn-sm" @click="logout">退出登录</button>
+<body class="theme-dark">
+<div id="app" v-cloak class="page">
+    <header class="head">
+        <div class="brand">
+            <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
+                <circle cx="17" cy="17" r="16" stroke="#28543b" stroke-width="1.2"/>
+                <path d="M10 22c0-7 5-12 14-13-1 9-6 14-14 13z" fill="#28543b" opacity=".9"/>
+                <path d="M10 25c3-5 6-8 11-10" stroke="#f5f1e6" stroke-width="1.1" stroke-linecap="round"/>
+            </svg>
+            <div>
+                <div class="brand-name">东环合作社</div>
+                <span class="brand-en">DONGHUAN CO-OPERATIVE</span>
+            </div>
+        </div>
+        <nav class="nav">
+            <button v-for="t in tabs" :key="t.key" class="navbtn"
+                    :class="{ on: tab === t.key }" @click="switchTab(t.key)">{{ t.label }}</button>
+        </nav>
+        <div class="user">
+            <span v-if="user">{{ user.username }} · {{ roleLabel }}</span>
+            <span class="avatar">{{ userInitial }}</span>
+            <button class="logout" @click="logout">退出</button>
         </div>
     </header>
 
-    <main class="page">
-        <div class="tabs">
-            <button class="tab" v-for="t in tabs" :key="t.key" :class="{ active: tab === t.key }"
-                    @click="switchTab(t.key)">{{ t.label }}</button>
+    <section class="hero" :class="{ compact: tab !== 'devices' }">
+        <div>
+            <div class="kicker">{{ dateLabel }}</div>
+            <h1>{{ heroTitle }}</h1>
+            <p class="sub">{{ heroSub }}</p>
+        </div>
+        <div class="stats" v-if="tab === 'devices' && devices.length">
+            <div class="stat" v-for="s in stats" :key="s.label">
+                <b>{{ s.value }}</b>
+                <i>{{ s.label }}</i>
+            </div>
+        </div>
+    </section>
+
+    <div class="rule"></div>
+
+    <!-- 今日田情 -->
+    <section v-show="tab === 'devices'">
+        <div class="layout" v-if="devices.length">
+            <div class="cards">
+                <article class="card" v-for="(g, i) in greenhouseViews" :key="g.code"
+                         :class="'st-' + g.status">
+                    <span class="no">No. {{ pad2(i + 1) }}</span>
+                    <div class="card-head">
+                        <h3>{{ g.name }}</h3>
+                        <span class="state" :class="'st-' + g.status">{{ g.statusLabel }}</span>
+                    </div>
+                    <div class="temp" v-if="g.mainNum !== null">
+                        {{ g.mainNum }}<span v-if="g.mainUnit">{{ g.mainUnit }}</span>
+                    </div>
+                    <div class="temp off" v-else>— —</div>
+                    <div class="meta" v-if="g.metaText">{{ g.metaText }}</div>
+                    <div class="meta" v-else-if="g.status === 'pending'">设备已录入，等待数据接入</div>
+                    <div class="note" :class="{ warn: g.status === 'warning' }">
+                        {{ g.reminder || g.lastText }}
+                    </div>
+                </article>
+            </div>
+
+            <aside class="side">
+                <div class="side-head">
+                    <h2>今日待办</h2>
+                    <span>WORK ORDERS</span>
+                </div>
+
+                <div class="order" v-for="o in sideOrders" :key="o.id">
+                    <span class="tag" :class="orderTagClass(o.status)">{{ orderStatusLabel(o.status) }}</span>
+                    <div>
+                        <h4>{{ o.greenhouseName }} · {{ o.description }}</h4>
+                        <p>{{ o.orderNo }} · {{ relativeTime(o.createdAt) }}</p>
+                    </div>
+                </div>
+                <div class="side-empty" v-if="!sideOrders.length">暂无待办，田里一切平稳。</div>
+
+                <blockquote>{{ quote }}</blockquote>
+
+                <div class="almanac">
+                    <div v-for="a in almanac" :key="a.label">{{ a.label }}<b>{{ a.value }}</b></div>
+                </div>
+
+                <button class="side-link" @click="switchTab('orders')">查看全部工单 →</button>
+            </aside>
         </div>
 
-        <!-- 申请服务 -->
-        <section v-show="tab === 'apply'">
-            <div class="card" style="max-width: 720px">
-                <div class="card-head">
-                    <span class="card-title">申请监测服务</span>
-                    <span class="hint">一单一棚，提交后由合作社审批</span>
+        <div class="blank" v-else>
+            设备安装完成后，这里会显示大棚状态
+            <a class="link" style="margin-left: 6px" @click="switchTab('apply')">去申请</a>
+        </div>
+    </section>
+
+    <!-- 我的工单 -->
+    <section v-show="tab === 'orders'">
+        <div class="sheet">
+            <div class="sheet-head">
+                <div>
+                    <div class="sheet-title">提交报修</div>
+                    <div class="sheet-sub">提交后由运维受理，处理完成后需您验收</div>
                 </div>
-                <div class="card-body">
-                    <div class="form-grid">
-                        <div class="form-item">
-                            <label>大棚名称</label>
-                            <input v-model.trim="applyForm.greenhouseName" placeholder="如 三号大棚">
-                        </div>
-                        <div class="form-item">
-                            <label>申请人</label>
-                            <input v-model.trim="applyForm.applicantName" placeholder="申请人姓名">
-                        </div>
-                        <div class="form-item">
-                            <label>联系电话</label>
-                            <input v-model.trim="applyForm.phone" placeholder="便于运维联系">
-                        </div>
-                    </div>
-
-                    <div class="section-title">需要监测的项目</div>
-                    <div class="table-wrap">
-                        <table>
-                            <thead>
-                            <tr><th>监测项目</th><th style="width: 140px">数量</th></tr>
-                            </thead>
-                            <tbody>
-                            <tr v-for="d in demandTypes" :key="d.type">
-                                <td>{{ d.label }}</td>
-                                <td><input type="number" min="0" max="20" v-model.number="d.count"></td>
-                            </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="hint" style="margin-top: 8px">不需要的项目填 0；数量表示该类型测点的路数</div>
-
-                    <div class="form-error">{{ applyError }}</div>
-                    <div class="modal-actions">
-                        <button class="btn btn-primary" :disabled="submitting" @click="submitApply">
-                            {{ submitting ? '提交中...' : '提交申请' }}
-                        </button>
-                    </div>
+                <span class="sheet-mark">REPAIR ORDER</span>
+            </div>
+            <div class="field-grid">
+                <div class="field">
+                    <label>大棚名称</label>
+                    <input v-model.trim="orderForm.greenhouseName" placeholder="如 三号大棚">
+                </div>
+                <div class="field">
+                    <label>联系人</label>
+                    <input v-model.trim="orderForm.applicantName" placeholder="联系人姓名">
+                </div>
+                <div class="field">
+                    <label>联系电话</label>
+                    <input v-model.trim="orderForm.phone" placeholder="便于运维联系">
+                </div>
+                <div class="field full">
+                    <label>问题描述</label>
+                    <textarea v-model.trim="orderForm.description"
+                              placeholder="描述遇到的问题，如：温度数据一直不变，设备指示灯不亮"></textarea>
                 </div>
             </div>
-        </section>
+            <div class="form-error">{{ orderError }}</div>
+            <div class="sheet-actions">
+                <button class="btn btn-primary" :disabled="submittingOrder" @click="submitOrder">
+                    {{ submittingOrder ? '提交中…' : '提交报修' }}
+                </button>
+            </div>
+        </div>
 
-        <!-- 我的申请 -->
-        <section v-show="tab === 'mine'">
-            <div class="toolbar">
-                <button class="btn" @click="loadMine">刷新</button>
-                <span class="hint" style="margin-left: auto">进度每 3 秒自动刷新</span>
-            </div>
-            <div v-if="applications.length">
-                <section class="card" v-for="a in applications" :key="a.id" style="margin-bottom: 12px">
-                    <div class="card-head">
-                        <span class="card-title">
-                            {{ a.applicationNo }}
-                            <span class="muted"> · {{ a.greenhouseName }}</span>
-                        </span>
-                        <span class="badge" :class="appBadgeClass(a.status)">{{ appStatusLabel(a.status) }}</span>
-                    </div>
-                    <div class="card-body">
-                        <div class="detail-grid">
-                            <div class="detail-item"><span class="label">大棚</span>{{ a.greenhouseName }}</div>
-                            <div class="detail-item"><span class="label">申请人</span>{{ a.applicantName }}</div>
-                            <div class="detail-item"><span class="label">联系电话</span>{{ a.phone || '-' }}</div>
-                            <div class="detail-item"><span class="label">申请时间</span>{{ fmtTime(a.createdAt) }}</div>
-                        </div>
-                        <div style="margin: 8px 0">
-                            <span class="tag" v-for="p in a.points" :key="p.type">
-                                {{ pointTypeLabel(p.type) }} × {{ p.count }}
-                            </span>
-                        </div>
-                        <div class="hint" style="margin-top: 8px" v-if="a.status === 'PENDING'">等待管理员审批</div>
-                        <div class="hint" style="margin-top: 8px" v-else-if="a.status === 'APPROVED'">已通过审批，等待运维上门安装设备</div>
-                        <div class="hint" style="margin-top: 8px" v-else-if="a.status === 'INSTALLED'">设备已安装完成，可在实时监测中查看数据</div>
-                        <div class="hint" style="margin-top: 8px; color: #b42318" v-else-if="a.status === 'REJECTED'">驳回原因：{{ a.rejectReason || '未填写' }}</div>
-                    </div>
-                </section>
-            </div>
-            <div class="card" v-else>
-                <div class="empty">
-                    暂无申请
-                    <a class="link" style="margin-left: 6px" @click="switchTab('apply')">去申请</a>
+        <div class="list-head">
+            <span class="list-title">工单记录 · {{ orders.length }}</span>
+            <button class="btn btn-sm" @click="loadOrders">刷新</button>
+        </div>
+
+        <div class="stack" v-if="orders.length">
+            <article class="note-card" v-for="o in orders" :key="o.id">
+                <div class="note-head">
+                    <span class="note-title">
+                        {{ o.orderNo }}<span class="muted"> · {{ o.greenhouseName }}</span>
+                    </span>
+                    <span class="badge" :class="orderBadgeClass(o.status)">{{ orderStatusLabel(o.status) }}</span>
                 </div>
-            </div>
-        </section>
+                <div class="note-grid">
+                    <div><span>大棚</span>{{ o.greenhouseName }}</div>
+                    <div><span>提交时间</span>{{ fmtTime(o.createdAt) }}</div>
+                    <div><span>受理人</span>{{ o.acceptedByName || '-' }}</div>
+                    <div><span>受理时间</span>{{ o.acceptedAt ? fmtTime(o.acceptedAt) : '-' }}</div>
+                </div>
+                <div class="note-desc">{{ o.description }}</div>
+                <div class="note-hint" v-if="o.status === 'PENDING'">等待运维受理</div>
+                <div class="note-hint" v-if="o.status === 'IN_PROGRESS'">运维已接单，正在处理</div>
+                <div class="note-hint" v-if="o.status === 'WAITING_ACCEPT'">
+                    完工说明：{{ o.completeNote || '未填写' }}
+                    （{{ o.completedByName || '运维' }} {{ fmtTime(o.completedAt) }}）
+                </div>
+                <div class="note-hint" v-if="o.status === 'DONE'">已于 {{ fmtTime(o.confirmedAt) }} 验收完成</div>
+                <div class="note-hint bad" v-if="o.status === 'CANCELLED'">
+                    已取消{{ o.cancelReason ? '：' + o.cancelReason : '' }}
+                </div>
+                <div class="note-actions" v-if="o.status === 'PENDING' || o.status === 'WAITING_ACCEPT'">
+                    <button class="btn btn-sm btn-danger" v-if="o.status === 'PENDING'"
+                            :disabled="actingOrderId === o.id" @click="cancelOrder(o)">取消报修</button>
+                    <button class="btn btn-sm btn-primary" v-if="o.status === 'WAITING_ACCEPT'"
+                            :disabled="actingOrderId === o.id" @click="confirmOrder(o)">确认完工</button>
+                </div>
+            </article>
+        </div>
+        <div class="blank" v-else>暂无工单，遇到设备问题可在上方提交报修</div>
+    </section>
 
-        <!-- 我的大棚 -->
-        <section v-show="tab === 'devices'">
-            <div class="toolbar">
-                <button class="btn" @click="loadDevices">刷新</button>
-                <span class="hint" style="margin-left: auto">实时值由服务端推送，500ms 更新；断线自动重连</span>
+    <!-- 申请服务 -->
+    <section v-show="tab === 'apply'">
+        <div class="sheet">
+            <div class="sheet-head">
+                <div>
+                    <div class="sheet-title">申请监测服务</div>
+                    <div class="sheet-sub">一棚一单 · 提交后由合作社审批</div>
+                </div>
+                <span class="sheet-mark">APPLICATION</span>
             </div>
-            <div class="device-grid">
-                <section class="card" v-for="d in devices" :key="d.deviceCode">
-                    <div class="card-head">
-                        <span class="card-title">{{ d.name }} <span class="muted code">{{ d.deviceCode }}</span></span>
-                        <span class="badge">{{ protocolLabel(d.protocol) }}</span>
-                    </div>
-                    <div>
-                        <div class="point-row" v-for="p in (d.points || [])" :key="p.pointCode">
-                            <div>
-                                <div class="point-name">{{ p.metric || p.pointCode }}</div>
-                                <div class="point-code">{{ p.pointCode }}<span v-if="p.invalid"> · 无效测点</span></div>
-                            </div>
-                            <div class="point-value" :class="{ bad: isBad(d, p) }">{{ valueText(d, p) }}</div>
-                        </div>
-                        <div class="empty" v-if="!d.points || !d.points.length">暂无测点</div>
-                    </div>
-                </section>
-                <div class="empty" v-if="!devices.length">
-                    暂无大棚，请先提交服务申请
-                    <a class="link" style="margin-left: 6px" @click="switchTab('apply')">去申请</a>
+            <div class="field-grid">
+                <div class="field">
+                    <label>大棚名称</label>
+                    <input v-model.trim="applyForm.greenhouseName" placeholder="如 三号大棚">
+                </div>
+                <div class="field">
+                    <label>申请人</label>
+                    <input v-model.trim="applyForm.applicantName" placeholder="申请人姓名">
+                </div>
+                <div class="field">
+                    <label>联系电话</label>
+                    <input v-model.trim="applyForm.phone" placeholder="便于运维联系">
                 </div>
             </div>
 
-            <section class="card" style="margin-top: 16px">
-                <div class="card-head">
-                    <span class="card-title">告警提醒（{{ activeAlarms.length }}）</span>
-                    <button class="btn btn-sm" @click="loadAlarms">刷新</button>
+            <div class="section-title">需要监测的项目</div>
+            <table class="paper-table">
+                <thead>
+                <tr><th>监测项目</th><th style="width: 150px">数量</th></tr>
+                </thead>
+                <tbody>
+                <tr v-for="d in demandTypes" :key="d.type">
+                    <td>{{ d.label }}</td>
+                    <td><input type="number" min="0" max="20" v-model.number="d.count"></td>
+                </tr>
+                </tbody>
+            </table>
+            <div class="hint" style="margin-top: 8px">不需要的项目填 0；数量表示该类型测点的路数</div>
+
+            <div class="form-error">{{ applyError }}</div>
+            <div class="sheet-actions">
+                <button class="btn btn-primary" :disabled="submitting" @click="submitApply">
+                    {{ submitting ? '提交中…' : '提交申请' }}
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- 我的申请 -->
+    <section v-show="tab === 'mine'">
+        <div class="list-head">
+            <span class="list-title">申请记录 · {{ applications.length }}</span>
+            <button class="btn btn-sm" @click="loadMine">刷新</button>
+        </div>
+
+        <div class="stack" v-if="applications.length">
+            <article class="note-card" v-for="a in applications" :key="a.id">
+                <div class="note-head">
+                    <span class="note-title">
+                        {{ a.applicationNo }}<span class="muted"> · {{ a.greenhouseName }}</span>
+                    </span>
+                    <span class="badge" :class="appBadgeClass(a.status)">{{ appStatusLabel(a.status) }}</span>
                 </div>
-                <div class="table-wrap">
-                    <table>
-                        <thead>
-                        <tr><th>测点</th><th>类型</th><th>值 / 阈值</th><th>时间</th><th>状态</th></tr>
-                        </thead>
-                        <tbody>
-                        <tr v-for="a in activeAlarms" :key="a.id">
-                            <td class="code">#{{ a.pointId }}</td>
-                            <td>{{ a.limitType === 'MAX' ? '上限' : '下限' }}</td>
-                            <td>{{ a.value }} / {{ a.threshold }}</td>
-                            <td class="muted">{{ fmtTime(a.sampleAt) }}</td>
-                            <td><span class="badge badge-warn">活动</span></td>
-                        </tr>
-                        <tr v-if="!activeAlarms.length">
-                            <td colspan="5" class="empty">暂无活动告警</td>
-                        </tr>
-                        </tbody>
-                    </table>
+                <div class="note-grid">
+                    <div><span>大棚</span>{{ a.greenhouseName }}</div>
+                    <div><span>申请人</span>{{ a.applicantName }}</div>
+                    <div><span>联系电话</span>{{ a.phone || '-' }}</div>
+                    <div><span>申请时间</span>{{ fmtTime(a.createdAt) }}</div>
                 </div>
-            </section>
-        </section>
-    </main>
+                <div>
+                    <span class="tag" v-for="p in a.points" :key="p.type">
+                        {{ pointTypeLabel(p.type) }} × {{ p.count }}
+                    </span>
+                </div>
+                <div class="note-hint" v-if="a.status === 'PENDING'">等待管理员审批</div>
+                <div class="note-hint" v-else-if="a.status === 'APPROVED'">已通过审批，等待运维上门安装设备</div>
+                <div class="note-hint" v-else-if="a.status === 'INSTALLED'">设备已安装完成，可在「今日田情」中查看数据</div>
+                <div class="note-hint bad" v-else-if="a.status === 'REJECTED'">驳回原因：{{ a.rejectReason || '未填写' }}</div>
+            </article>
+        </div>
+        <div class="blank" v-else>
+            暂无申请
+            <a class="link" style="margin-left: 6px" @click="switchTab('apply')">去申请</a>
+        </div>
+    </section>
+
+    <footer class="foot">
+        <span>东环合作社 · 种植户端</span>
+        <span>— 01 —</span>
+    </footer>
 </div>
 
 <script src="/js/vue.global.prod.js"></script>
 <script src="/js/api.js"></script>
-<script>
-    const { createApp } = Vue;
-
-    createApp({
-        data() {
-            return {
-                user: null,
-                tab: 'apply',
-                tabs: [
-                    { key: 'apply', label: '申请服务' },
-                    { key: 'mine', label: '我的申请' },
-                    { key: 'devices', label: '我的大棚' }
-                ],
-                submitting: false,
-                applications: [],
-                devices: [],
-                snapshots: {},
-                activeAlarms: [],
-                demandTypes: [
-                    { type: 'temperature', label: '温度', count: 1 },
-                    { type: 'humidity', label: '空气湿度', count: 1 },
-                    { type: 'soil', label: '土壤湿度', count: 0 },
-                    { type: 'light', label: '光照', count: 0 }
-                ],
-                applyForm: { greenhouseName: '', applicantName: '', phone: '' },
-                applyError: '',
-                snapshotSource: null,
-                snapshotTimer: null,
-                pollTimer: null
-            };
-        },
-        computed: {
-            roleLabel() {
-                return this.user ? roleText(this.user.role) : '';
-            },
-            navItems() {
-                if (!this.user) return [];
-                return [
-                    { label: '种植户端', href: '/farmer.html' },
-                    { label: '实时监测', href: '/monitor.html' }
-                ];
-            }
-        },
-        mounted() {
-            this.init();
-            this.snapshotSource = openSnapshotStream(batch => this.applySnapshots(batch));
-            this.snapshotTimer = setInterval(this.loadSnapshots, 3000);
-            this.pollTimer = setInterval(() => {
-                this.loadMine();
-                this.loadAlarms();
-                this.loadDevices();
-            }, 3000);
-        },
-        beforeUnmount() {
-            clearInterval(this.snapshotTimer);
-            clearInterval(this.pollTimer);
-            if (this.snapshotSource) this.snapshotSource.close();
-        },
-        methods: {
-            async init() {
-                try {
-                    this.user = await API.get('/api/auth/me');
-                    this.applyForm.applicantName = this.user.username;
-                    await Promise.all([this.loadMine(), this.loadDevices(), this.loadSnapshots(), this.loadAlarms()]);
-                } catch (e) {
-                    // 401 已由 API 封装跳转
-                }
-            },
-            switchTab(key) {
-                this.tab = key;
-                if (key === 'mine') this.loadMine();
-                else if (key === 'devices') this.loadDevices();
-            },
-            async loadMine() {
-                try {
-                    this.applications = await API.get('/api/service-applications/mine') || [];
-                } catch (e) {
-                    // 轮询失败不打断页面
-                }
-            },
-            async loadDevices() {
-                try {
-                    this.devices = await API.get('/api/devices') || [];
-                } catch (e) {
-                    // 轮询失败不打断页面
-                }
-            },
-            async loadSnapshots() {
-                try {
-                    this.snapshots = await API.get('/api/snapshots') || {};
-                } catch (e) {
-                    // 轮询失败不打断页面
-                }
-            },
-            applySnapshots(batch) {
-                if (batch && typeof batch === 'object') {
-                    Object.assign(this.snapshots, batch);
-                }
-            },
-            async loadAlarms() {
-                try {
-                    this.activeAlarms = await API.get('/api/alarms/active') || [];
-                } catch (e) {
-                    // 轮询失败不打断页面
-                }
-            },
-            async submitApply() {
-                const f = this.applyForm;
-                if (!f.greenhouseName) {
-                    this.applyError = '大棚名称不能为空';
-                    return;
-                }
-                if (!f.applicantName) {
-                    this.applyError = '申请人不能为空';
-                    return;
-                }
-                if (!f.phone || f.phone.length < 6) {
-                    this.applyError = '联系电话格式错误';
-                    return;
-                }
-                const points = [];
-                for (const d of this.demandTypes) {
-                    const count = Number(d.count) || 0;
-                    if (count < 0 || count > 20 || !Number.isInteger(count)) {
-                        this.applyError = d.label + ' 数量必须在 0~20 之间';
-                        return;
-                    }
-                    if (count > 0) points.push({ type: d.type, count });
-                }
-                if (!points.length) {
-                    this.applyError = '至少选择一项监测项目';
-                    return;
-                }
-
-                this.submitting = true;
-                try {
-                    await API.post('/api/service-applications', {
-                        greenhouseName: f.greenhouseName,
-                        applicantName: f.applicantName,
-                        points,
-                        phone: f.phone
-                    });
-                    showToast('申请已提交，等待审批', 'success');
-                    this.applyForm.greenhouseName = '';
-                    this.demandTypes.forEach(d => { d.count = d.type === 'temperature' || d.type === 'humidity' ? 1 : 0; });
-                    this.applyError = '';
-                    this.tab = 'mine';
-                    await this.loadMine();
-                } catch (e) {
-                    this.applyError = e.message;
-                } finally {
-                    this.submitting = false;
-                }
-            },
-            pointTypeLabel(type) {
-                return { temperature: '温度', humidity: '空气湿度', soil: '土壤湿度', light: '光照' }[type] || type;
-            },
-            appStatusLabel(status) {
-                return { PENDING: '待审批', APPROVED: '已通过', REJECTED: '已驳回', INSTALLED: '已开通' }[status] || status;
-            },
-            appBadgeClass(status) {
-                return { PENDING: 'badge-warn', REJECTED: 'badge-danger' }[status] || '';
-            },
-            snapshotOf(device, point) {
-                return this.snapshots[device.deviceCode + ':' + point.pointCode] || null;
-            },
-            valueText(device, point) {
-                const snapshot = this.snapshotOf(device, point);
-                if (!snapshot) return '-';
-                const unit = snapshot.unit || point.unit;
-                return formatByUnit(snapshot.value, unit) + (unit ? ' ' + unit : '');
-            },
-            isBad(device, point) {
-                const snapshot = this.snapshotOf(device, point);
-                return snapshot && snapshot.quality === 'BAD';
-            },
-            protocolLabel(protocol) {
-                return String(protocol || '').toUpperCase() === 'MODBUS' ? 'Modbus TCP' : 'MQTT';
-            },
-            fmtTime(value) {
-                if (!value) return '-';
-                const d = new Date(value);
-                const pad = n => String(n).padStart(2, '0');
-                return pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' +
-                    pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
-            },
-            async logout() {
-                try {
-                    await API.post('/api/auth/logout', {});
-                } catch (e) {
-                    // 忽略，统一回登录页
-                }
-                location.href = '/login.html';
-            }
-        }
-    }).mount('#app');
-</script>
+<script src="/js/pages/farmer.js"></script>
 </body>
 </html>

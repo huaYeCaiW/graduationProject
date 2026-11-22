@@ -1,0 +1,135 @@
+/*
+ * 全局主题令牌
+ * 浅色：田野 / 台账 / 登录 / 入口 / 错误页
+ * 深色：运维 / 监测（body.theme-dark）
+ */
+
+:root {
+    /* 浅色底 */
+    --c-paper: #f6f4ee;
+    --c-paper-deep: #eeeade;
+    --c-card: #fffdf7;
+    --c-ink: #1c2733;
+    --c-ink-soft: #4e5a69;
+    --c-ink-faint: #7d8794;
+    --c-rule: #dad5c8;
+    --c-rule-strong: #c5bfaf;
+
+    /* 强调色 */
+    --c-seal: #a33a2e;
+    --c-seal-deep: #832d24;
+    --c-seal-wash: rgba(163, 58, 46, 0.07);
+    --c-jade: #2f5b4c;
+    --c-jade-dark: #25493d;
+    --c-jade-wash: rgba(47, 91, 76, 0.08);
+    --c-amber: #94651d;
+    --c-amber-wash: rgba(148, 101, 29, 0.1);
+    --c-blue: #2d4a6b;
+    --c-blue-wash: rgba(45, 74, 107, 0.08);
+
+    /* 深色底（登录左栏 / 运维 / 监测） */
+    --c-forest: #16251c;
+    --c-forest-2: #1d3226;
+    --c-dark: #0b120e;
+    --c-dark-panel: #101c15;
+    --c-dark-panel-2: #0d1811;
+    --c-dark-text: #e8f2e9;
+    --c-dark-muted: #7f9588;
+    --c-dark-dim: #6d8777;
+    --c-dark-border: #22362a;
+    --c-dark-border-2: #1b2b21;
+    --c-lime: #b9ee7a;
+    --c-mint: #5fd6a0;
+    --c-dark-amber: #e8b45c;
+
+    /* 字体 */
+    --font-sans: "Microsoft YaHei", "PingFang SC", sans-serif;
+    --font-serif: "STZhongsong", "SimSun", serif;
+    --font-mono: "Consolas", "Courier New", monospace;
+    --font-display: "Bahnschrift", "Segoe UI", sans-serif;
+    --font-numeric: "Bahnschrift", "Consolas", monospace;
+
+    /* 浅色语义别名（页面直接使用） */
+    --paper: var(--c-paper);
+    --paper-deep: var(--c-paper-deep);
+    --card: var(--c-card);
+    --ink: var(--c-ink);
+    --ink-soft: var(--c-ink-soft);
+    --ink-faint: var(--c-ink-faint);
+    --rule: var(--c-rule);
+    --rule-strong: var(--c-rule-strong);
+    --seal: var(--c-seal);
+    --seal-deep: var(--c-seal-deep);
+    --seal-wash: var(--c-seal-wash);
+    --jade: var(--c-jade);
+    --jade-wash: var(--c-jade-wash);
+    --amber: var(--c-amber);
+    --amber-wash: var(--c-amber-wash);
+    --blue: var(--c-blue);
+    --blue-wash: var(--c-blue-wash);
+    --forest: var(--c-forest);
+    --forest-2: var(--c-forest-2);
+    --lime: var(--c-lime);
+
+    --bg: var(--c-paper);
+    --text: var(--c-ink);
+    --muted: var(--c-ink-faint);
+    --dim: var(--c-ink-faint);
+    --border: var(--c-rule);
+    --green: var(--c-jade);
+    --green-dark: var(--c-jade-dark);
+    --green-light: var(--c-jade-wash);
+    --danger: var(--c-seal);
+    --danger-light: var(--c-seal-wash);
+    --warn: var(--c-amber);
+    --shadow: none;
+}
+
+.theme-dark {
+    --bg: var(--c-dark);
+    --panel: var(--c-dark-panel);
+    --panel-2: var(--c-dark-panel-2);
+    --card: var(--c-dark-panel);
+    --text: var(--c-dark-text);
+    --muted: var(--c-dark-muted);
+    --dim: var(--c-dark-dim);
+    --border: var(--c-dark-border);
+    --border-2: var(--c-dark-border-2);
+    --lime: var(--c-lime);
+    --mint: var(--c-mint);
+    --amber: var(--c-dark-amber);
+    --green: var(--c-lime);
+    --green-dark: var(--c-mint);
+    --green-light: rgba(185, 238, 122, 0.1);
+    --danger: var(--c-dark-amber);
+    --danger-light: rgba(232, 180, 92, 0.1);
+    --warn: var(--c-dark-amber);
+    --shadow: none;
+
+    /* 浅色页面变量在深色模式下的映射 */
+    --paper: var(--c-dark);
+    --paper-deep: var(--c-dark-panel-2);
+    --ink: var(--c-dark-text);
+    --ink-soft: #a9c4b2;
+    --ink-faint: var(--c-dark-dim);
+    --rule: var(--c-dark-border);
+    --rule-strong: #2b4233;
+    --seal: #c05a4c;
+    --seal-deep: #e08a7c;
+    --seal-wash: rgba(192, 90, 76, 0.12);
+    --jade: #2b5a42;
+    --jade-dark: #25493d;
+    --jade-wash: rgba(43, 90, 66, 0.22);
+    --amber-wash: rgba(232, 180, 92, 0.12);
+    --blue: #7fa8d8;
+    --blue-wash: rgba(127, 168, 216, 0.12);
+
+    /* 种植户页别名 */
+    --card-paper: var(--card);
+    --line: var(--border);
+    --line-strong: var(--rule-strong);
+    --leaf: var(--c-lime);
+    --clay: var(--seal);
+    --clay-deep: var(--seal-deep);
+    --sun: var(--amber);
+}
